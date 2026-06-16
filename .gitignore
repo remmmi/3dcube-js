@@ -1,0 +1,3 @@
+# Artefacts de test / QA (captures et logs du navigateur)
+.playwright-mcp/
+qa-*.png
