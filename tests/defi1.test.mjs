@@ -88,6 +88,13 @@ test("un mauvais coup declenche erreur, reset et recalibration", () => {
   assert.equal(defi.etat().progres, 1);
 });
 
+test("le module expose son titre et son explication pour le bandeau", () => {
+  const { defi } = creer();
+  assert.equal(defi.titre, "Defi 1");
+  assert.equal(typeof defi.description, "string");
+  assert.ok(defi.description.length > 0);
+});
+
 test("tick flashe le cardinal apres la calibration", () => {
   const { defi, indicateur } = creer();
   defi.init();

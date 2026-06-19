@@ -94,5 +94,10 @@ export function creerDefi1(opts = {}) {
 
   function etat() { return { progres, resolu, attendCalibration, nord, phase, cible: cible.slice() }; }
 
-  return { id: "defi1", init, onCalibration, onCoup, onReset: init, tick, etat };
+  return {
+    id: "defi1",
+    titre: "Defi 1",
+    description: "Pousse le jumeau numerique du cube et devine son comportement pour gagner. Ton indicateur est le bandeau lumineux sous le cube qui flashe vert.",
+    init, onCalibration, onCoup, onReset: init, tick, etat,
+  };
 }

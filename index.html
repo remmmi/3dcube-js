@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cube escape-room - Defi 1</title>
+<title>Cube MultiDefis</title>
 
 <!-- Import map : chargement asynchrone de Three.js depuis le CDN jsDelivr -->
 <script type="importmap">
@@ -348,8 +348,10 @@
 <body>
 
 <header class="page-title">
-  <h1>Cube escape-room - Defi 1</h1>
-  <p>Jumeau numerique du cube physique. Le voyant flashe un cardinal du cube (Nord pose par la calibration) ; faites basculer le cube pour dechiffrer le code.</p>
+  <!-- Le suffixe de titre et l'explication sont fournis par le module de defi
+       actif (voir src/challenges/defi1.js), injectes par src/bench/main.js. -->
+  <h1>Cube MultiDefis - <span id="defi-titre"></span></h1>
+  <p id="defi-explication"></p>
 </header>
 
 <div class="layout">

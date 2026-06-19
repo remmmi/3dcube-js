@@ -2,6 +2,8 @@
 // Contrat commun a tous les defis. Documentaire : un module est un objet
 // exposant id, init(), onCalibration(nordMonde), onCoup(directionMonde),
 // onReset(), tick(temps, auRepos). auRepos indique que le cube est immobile.
+// Champs d'affichage optionnels : titre (suffixe du bandeau) et description
+// (explication du defi), lus par le banc pour remplir l'en-tete.
 // Le coeur ne connait pas les regles ; un defi ne connait pas la trigonometrie du cube.
 export const METHODES_REQUISES = ["init", "onCalibration", "onCoup", "onReset", "tick"];
 

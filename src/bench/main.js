@@ -81,6 +81,17 @@ async function demarrer() {
 
   gestion.activer("defi1");
 
+  // Remplit le bandeau avec le titre et l'explication du module de defi actif.
+  function majBandeau() {
+    const m = gestion.actif;
+    if (!m) return;
+    const titre = document.getElementById("defi-titre");
+    const explication = document.getElementById("defi-explication");
+    if (titre) titre.textContent = m.titre || "";
+    if (explication) explication.textContent = m.description || "";
+  }
+  majBandeau();
+
   // ---- Traitement d'un appui directionnel ----
   function onFleche(direction) {
     if (vue.estEnAnimation()) return; // un roulement est deja en cours
