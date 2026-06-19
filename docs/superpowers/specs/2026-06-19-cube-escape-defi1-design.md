@@ -99,7 +99,84 @@ suivant, ou signale l'erreur par un clignotement franc et attend une
 recalibration. Toute la conception (timing, motifs, tolerances) sert cette
 boucle percue uniquement par la lumiere et le geste.
 
-## 4. Decisions verrouillees
+## 4. Point de depart : le projet existant et son evolution
+
+Ce defi n'est pas un projet neuf : il fait evoluer le projet courant. On part
+de `index.html` (un seul fichier, tout dans `initApp()`) et on le rend fidele a
+la philosophie de la section 3, sans le reecrire de zero.
+
+### Ce qui existe deja (le germe du banc)
+
+- `roll(dir)` : roulement anime du cube de 90 degres autour d'une arrete au sol,
+  avec un pivot temporaire et `attach()` qui preserve la pose monde.
+- `updateMatrix(decimals)` : matrice 8x3 des sommets en coordonnees monde, mise
+  a jour a chaque frame.
+- OrbitControls (vue seule), axes colores, grille.
+- Sauvegardes d'etats nommees par `moveSequence` (`captureState`, `loadState`,
+  `addSaveEntry`), bouton `resetCube`.
+
+C'est deja un jumeau numerique du cube qui roule. Mais il ne respecte pas encore
+la philosophie de la spec.
+
+### L'ecart a combler
+
+- **Orientation en flottant** : la pose est un quaternion Three.js, pas une
+  matrice entiere M. La verite de l'orientation doit passer dans un coeur
+  entier ; le quaternion ne reste que pour l'animation visuelle (banc).
+- **La memoire est un historique** : le seul etat persistant est `moveSequence`
+  (la liste des coups), exactement ce que la spec refuse. L'etat doit devenir
+  l'orientation M unique, independante du chemin.
+- **Tout est melange dans un seul closure** : aucune separation produit / banc,
+  aucune interface, aucun coeur isole. La logique de roulement, le rendu et la
+  matrice cohabitent dans `initApp()`.
+
+### Le travail d'evolution (pas de reecriture)
+
+- **Extraire le coeur** `CubeState` (M entier, position) dans son propre module,
+  sans aucune reference a Three.js ni au DOM, copiable vers le C++. C'est la
+  nouvelle source de verite.
+- **Brancher `roll(dir)` sur le coeur** : l'appui fleche passe par
+  `SourceMouvement` qui en derive un roulement repere corps, le coeur met a jour
+  M et position ; l'animation Three.js existante ne fait plus que refleter cet
+  etat (et se recale sur M au repos via le snap deja present).
+- **Retirer l'historique du role d'etat** : `moveSequence` ne sert plus qu'au
+  nommage des sauvegardes (fonction de banc) ; il ne porte plus l'etat logique.
+- **Ajouter les couches manquantes** : `Indicateur` (zone de flash dans l'UI
+  existante), `GestionnaireDefis`, `ModuleDefi`, et le Defi 1.
+- **Conserver tel quel** le banc utile : vue 3D, matrice, axes, OrbitControls,
+  sauvegardes. Ils deviennent les yeux du dev sur le modele.
+
+### Structure de fichiers (modulaire)
+
+La convention historique du depot (tout dans `index.html`) est abandonnee : elle
+n'a plus d'interet et nuirait au portage. On structure en modules ES, avec des
+repertoires qui materialisent la frontiere produit / banc. La convention de
+`CLAUDE.md` sera mise a jour en consequence.
+
+    index.html              page + import map ; monte le banc
+    src/
+      core/                 [produit] portable, zero dependance navigateur
+        rotation.js         maths entieres : matrices/vecteurs 3x3, helpers
+        cubeState.js        M, position, appliquerRoulementBody,
+                            classifierDirectionMonde, reset, evenements
+      challenges/           [produit] modules de defi
+        moduleDefi.js       contrat commun (interface de base)
+        gestionnaireDefis.js  enregistre et route vers le module actif
+        defi1.js            dechiffrage sur 6 coups
+      bench/                [banc] navigateur, jetable au portage
+        sourceMouvement.js  entrees clavier/boutons -> roulement repere corps
+        indicateur.js       flash LED simule (DOM)
+        vue3d.js            scene Three.js : roll anime, OrbitControls, axes
+        matrice.js          tableau 8x3 + sauvegardes
+        main.js             montage : cable coeur, defis et banc ensemble
+
+Correspondance avec le portage : chaque module de `core/` et `challenges/` se
+transpose en une unite C++ (`.h` / `.cpp`) ; `bench/` est remplace par les
+peripheriques du firmware (gyro/accelerometre pour `sourceMouvement`, LED pour
+`indicateur`) et disparait. Cette separation par repertoires rend visible, des
+l'arborescence, ce qui part en firmware et ce qui reste au sol.
+
+## 5. Decisions verrouillees
 
 - **Etat = une seule orientation M** (matrice de rotation 3x3 entiere, 24
   valeurs possibles) plus une position, tous deux obtenus par dead-reckoning
@@ -120,7 +197,7 @@ boucle percue uniquement par la lumiere et le geste.
 - **Pas de probleme de parite / atteignabilite** pour le Defi 1 : on impose une
   direction monde par coup, pas un couple (case, orientation) cible.
 
-## 5. Architecture
+## 6. Architecture
 
 Trois couches separees, communiquant par interfaces explicites. Le marquage
 [produit] / [banc] rappelle ce qui se portera en firmware et ce qui reste au
@@ -154,7 +231,7 @@ Seules la source de mouvement (cote entree) et l'indicateur (cote sortie), plus
 la vue 3D et la matrice, sont adherents au navigateur. Le coeur et les defis
 sont des fonctions pures sur des entiers, sans dependance a Three.js ni au DOM.
 
-## 6. Le coeur CubeState
+## 7. Le coeur CubeState
 
 ### Etat interne
 
@@ -201,7 +278,7 @@ Le coeur reste minimal mais cet evenement suffit a reconstituer un historique
 complet a posteriori : un futur module d'historique n'a qu'a s'abonner, sans
 modifier le coeur.
 
-## 7. Le gestionnaire de defis et l'interface ModuleDefi
+## 8. Le gestionnaire de defis et l'interface ModuleDefi
 
 ### GestionnaireDefis
 
@@ -227,7 +304,7 @@ API : `enregistrer(module)`, `activer(id)`, `onCoupRecu(directionMonde)`.
 Le coeur ne connait pas les regles d'un defi ; un defi ne connait pas la
 trigonometrie du cube. On peut charger un autre module sans toucher au coeur.
 
-## 8. Le Defi 1 (dechiffrage sur 6 coups)
+## 9. Le Defi 1 (dechiffrage sur 6 coups)
 
 Code de flash des directions : 1 = Haut, 2 = Droite, 3 = Bas, 4 = Gauche. Les
 motifs sont concus pour une seule LED (groupes de flashs separes par des pauses
@@ -258,7 +335,7 @@ courante. C'est la memoire d'orientation M (et non un cap absolu) qui permet de
 distinguer, par exemple, l'etat initial d'un etat tourne de 180 degres autour
 de Z apres quelques coups.
 
-## 9. Tests (sur le coeur, ou est tout le risque)
+## 10. Tests (sur le coeur, ou est tout le risque)
 
 - `classifierDirectionMonde` correcte apres une suite de roulements quelconques
   (cube culbute dans une orientation arbitraire).
@@ -272,7 +349,7 @@ de Z apres quelques coups.
 - Defi 1 : une sequence de bons coups resout ; un mauvais coup declenche reset
   et recalibration ; le premier coup ne compte jamais.
 
-## 10. Portes laissees ouvertes (extensibilite)
+## 11. Portes laissees ouvertes (extensibilite)
 
 Aucune decision du Defi 1 ne condamne ces evolutions.
 
@@ -288,7 +365,7 @@ Aucune decision du Defi 1 ne condamne ces evolutions.
   Three.js ni DOM, logique temporelle en `tick(temps)`. Seuls `SourceMouvement`
   (gyro MPU-6050) et `Indicateur` (LED) seront reimplementes en C++.
 
-## 11. Hors perimetre (YAGNI pour le Defi 1)
+## 12. Hors perimetre (YAGNI pour le Defi 1)
 
 - Pas d'historique de coups implemente (seulement l'evenement qui le permettra).
 - Pas de magnetometre ni de cap absolu actif.
