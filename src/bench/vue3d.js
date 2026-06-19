@@ -126,6 +126,39 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
   let isRolling = false;
   const tmpVec = new THREE.Vector3();
 
+  // Easing doux partage (roulement et recadrage camera).
+  function ease(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  // ---- Suivi de camera : recadrage quand le cube approche du bord ----
+  // On ne deplace jamais la camera pendant que le cube reste visible (il peut
+  // rouler librement dans le cadre). Des que son centre sort d'une zone sure,
+  // on translate camera et cible du meme vecteur (l'angle et le zoom sont
+  // conserves) pour le ramener au centre, avec une transition douce.
+  let recadrage = null; // { camPos, cible, delta, debut, duree }
+  const MARGE_NDC = 0.7; // 1 = bord exact de l'ecran ; 0.7 garde une marge
+
+  function centreCubeMonde() {
+    const c = new THREE.Vector3(0.5, 0.5, 0.5);
+    cubeGroup.localToWorld(c);
+    return c;
+  }
+  function demarrerRecadrage(delta, duree) {
+    recadrage = {
+      camPos: camera.position.clone(),
+      cible: controls.target.clone(),
+      delta, debut: performance.now(), duree,
+    };
+  }
+  function verifierEtRecadrer() {
+    const centre = centreCubeMonde();
+    const ndc = centre.clone().project(camera);
+    if (Math.abs(ndc.x) > MARGE_NDC || Math.abs(ndc.y) > MARGE_NDC) {
+      demarrerRecadrage(centre.sub(controls.target), 450);
+    }
+  }
+
   // Sommets de la face au sol (z minimal), pour placer le pivot.
   function getBottomVertices() {
     const positions = VERTEX_NAMES.map((name) => {
@@ -203,6 +236,7 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
         cubeGroup.quaternion.setFromEuler(euler);
         cubeGroup.updateMatrixWorld(true);
         isRolling = false;
+        verifierEtRecadrer();
         if (onFini) onFini();
       }
     }
@@ -215,6 +249,11 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
     cubeGroup.position.set(0, 0, 0);
     cubeGroup.quaternion.identity();
     cubeGroup.updateMatrixWorld(true);
+    // Recentre instantanement la camera sur le cube revenu a l'origine.
+    recadrage = null;
+    const delta = new THREE.Vector3(0.5, 0.5, 0.5).sub(controls.target);
+    camera.position.add(delta);
+    controls.target.add(delta);
   }
 
   // Positions monde des 8 sommets, pour alimenter la matrice.
@@ -254,6 +293,14 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
   // Boucle de rendu unique. onFrame permet de cadencer la logique du defi (tick).
   function animate() {
     requestAnimationFrame(animate);
+    // Recadrage en cours : on translate camera et cible du meme vecteur.
+    if (recadrage) {
+      const t = Math.min((performance.now() - recadrage.debut) / recadrage.duree, 1);
+      const e = ease(t);
+      camera.position.copy(recadrage.camPos).addScaledVector(recadrage.delta, e);
+      controls.target.copy(recadrage.cible).addScaledVector(recadrage.delta, e);
+      if (t >= 1) recadrage = null;
+    }
     controls.update();
     if (onFrame) onFrame(performance.now());
     renderer.render(scene, camera);
