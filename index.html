@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cube 3D roulant - Matrice des sommets</title>
+<title>Cube escape-room - Defi 1</title>
 
 <!-- Import map : chargement asynchrone de Three.js depuis le CDN jsDelivr -->
 <script type="importmap">
@@ -45,7 +45,7 @@
     color: #c8d8ea;
   }
 
-  /* Conteneur en deux colonnes */
+  /* Conteneur en colonnes */
   .layout {
     display: flex;
     flex-direction: row;
@@ -70,7 +70,7 @@
     gap: 14px;
   }
 
-  /* Colonne droite large : la visualisation 3D */
+  /* Colonne centrale large : la visualisation 3D */
   .panel-right {
     flex: 1 1 auto;
     min-width: 0;
@@ -244,6 +244,27 @@
   .controls button.reset:active { background: #364049; }
   .controls .spacer { width: 78px; }
 
+  /* Voyant lumineux : LED simulee du cube escape-room */
+  .voyant-bloc {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .voyant {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #222;
+    border: 2px solid #0d141c;
+    flex: 0 0 auto;
+    transition: background 0.05s linear, box-shadow 0.05s linear;
+  }
+  .voyant-bloc span {
+    font-size: 12px;
+    color: #5a6b7b;
+  }
+
   .hint {
     font-size: 12px;
     color: #5a6b7b;
@@ -330,8 +351,8 @@
 <body>
 
 <header class="page-title">
-  <h1>Cube 3D roulant</h1>
-  <p>Faites rouler le cube avec les fleches : la matrice des sommets se met a jour en temps reel.</p>
+  <h1>Cube escape-room - Defi 1</h1>
+  <p>Jumeau numerique du cube physique. Faites-le rouler pour dechiffrer le code ; le voyant flashe la direction demandee.</p>
 </header>
 
 <div class="layout">
@@ -350,8 +371,8 @@
           </tr>
         </thead>
         <tbody id="matrix-body">
-          <!-- Les lignes sont generees par JavaScript pour rester synchronisees
-               avec la liste des sommets, mais chaque cellule possede un id stable. -->
+          <!-- Les lignes sont generees par src/bench/matrice.js : chaque cellule
+               possede un id stable (cell-A-x, ...). -->
         </tbody>
       </table>
     </div>
@@ -374,9 +395,15 @@
           <button id="btn-reset" type="button" class="reset">Reinitialiser</button>
         </div>
       </div>
+      <!-- Voyant lumineux : seule sortie du cube physique (LED simulee). -->
+      <div class="voyant-bloc">
+        <div id="voyant" class="voyant"></div>
+        <span>Voyant du cube (code de direction / erreur)</span>
+      </div>
       <p class="hint">
-        Cliquez sur les boutons ou utilisez les fleches du clavier.
-        La souris (glisser / molette) deplace seulement la camera, pas le cube.
+        Le premier coup calibre le cube (non compte). Ensuite, suivez le code
+        flashe par le voyant (1 = Haut, 2 = Droite, 3 = Bas, 4 = Gauche) sur 6
+        coups. La souris deplace seulement la camera, pas le cube.
       </p>
     </div>
   </section>
@@ -391,9 +418,9 @@
     <h2 class="section-title">Etats sauvegardes</h2>
     <button id="btn-save" type="button" class="save-btn">Sauvegarder l'etat actuel</button>
     <p class="hint">
-      Chaque sauvegarde est nommee par la sequence de mouvements qui y mene
-      (H = Haut, B = Bas, G = Gauche, D = Droite). Cliquez le nom pour recharger
-      l'etat ; la croix le supprime.
+      Outil de banc : chaque sauvegarde est nommee par la sequence de mouvements
+      qui y mene (H = Haut, B = Bas, G = Gauche, D = Droite). Cliquez le nom pour
+      recharger la pose ; la croix la supprime.
     </p>
     <ul id="saves-list" class="saves-list">
       <li class="saves-empty" id="saves-empty">Aucune sauvegarde pour le moment.</li>
@@ -402,564 +429,8 @@
 
 </div>
 
-<script type="module">
-// ====================================================================
-//  Cube 3D roulant avec Three.js
-//  - Axe Z vertical, plan horizontal z = 0
-//  - Roulement par bascule de 90 degres autour des aretes au sol
-//  - Synchronisation temps reel des coordonnees monde dans la matrice
-// ====================================================================
-
-// ---- Definition des 8 sommets imposes (A..H) ----
-// Coordonnees locales dans le cubeGroup au depart (= coordonnees monde au depart).
-const VERTEX_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H"];
-const VERTEX_LOCAL = {
-  A: [0, 0, 0],
-  B: [1, 0, 0],
-  C: [1, 1, 0],
-  D: [0, 1, 0],
-  E: [0, 0, 1],
-  F: [1, 0, 1],
-  G: [1, 1, 1],
-  H: [0, 1, 1]
-};
-
-// ---- Construction de la table de la matrice ----
-// Chaque cellule recoit un id unique pour une mise a jour directe via textContent.
-const matrixBody = document.getElementById("matrix-body");
-const cellRefs = {}; // cellRefs["A"] = { x: <td>, y: <td>, z: <td> }
-
-for (const name of VERTEX_NAMES) {
-  const tr = document.createElement("tr");
-
-  const tdName = document.createElement("td");
-  tdName.className = "vertex-name";
-  tdName.textContent = name;
-  tr.appendChild(tdName);
-
-  const refs = {};
-  for (const axis of ["x", "y", "z"]) {
-    const td = document.createElement("td");
-    td.id = "cell-" + name + "-" + axis;
-    td.textContent = "0";
-    tr.appendChild(td);
-    refs[axis] = td;
-  }
-  cellRefs[name] = refs;
-  matrixBody.appendChild(tr);
-}
-
-// ---- Reference au conteneur de visualisation ----
-const viewer = document.getElementById("viewer");
-
-// Petit utilitaire pour afficher une erreur claire dans la zone de droite.
-function showError(message) {
-  const box = document.createElement("div");
-  box.className = "error-box";
-  box.textContent = message;
-  viewer.appendChild(box);
-}
-
-// ---- Test du support WebGL avant toute initialisation ----
-function isWebGLAvailable() {
-  try {
-    const canvas = document.createElement("canvas");
-    return !!(
-      window.WebGLRenderingContext &&
-      (canvas.getContext("webgl2") || canvas.getContext("webgl"))
-    );
-  } catch (e) {
-    return false;
-  }
-}
-
-if (!isWebGLAvailable()) {
-  showError("WebGL n'est pas supporte par ce navigateur. La visualisation 3D ne peut pas etre affichee.");
-} else {
-  // On lance l'initialisation seulement si WebGL est disponible.
-  // L'import dynamique permet de capturer une eventuelle erreur de chargement CDN.
-  initApp().catch((err) => {
-    console.error(err);
-    showError("Erreur lors du chargement de Three.js ou de l'initialisation de la scene. Verifiez votre connexion (CDN jsDelivr). Detail : " + err.message);
-  });
-}
-
-// ====================================================================
-//  Fonction principale d'initialisation (asynchrone)
-// ====================================================================
-async function initApp() {
-  // Imports dynamiques pour pouvoir les envelopper dans le try/catch externe.
-  const THREE = await import("three");
-  const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
-  const { CSS2DRenderer, CSS2DObject } = await import("three/addons/renderers/CSS2DRenderer.js");
-
-  try {
-    // ---------------- Scene, camera, renderers ----------------
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf3f7fb);
-
-    const camera = new THREE.PerspectiveCamera(
-      45,
-      viewer.clientWidth / viewer.clientHeight,
-      0.1,
-      100
-    );
-    // Axe Z vertical : on indique a la camera que le "haut" est +Z.
-    camera.up.set(0, 0, 1);
-    camera.position.set(3.5, -4.5, 3.2);
-    camera.lookAt(0.5, 0.5, 0.5);
-
-    // Renderer WebGL
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(viewer.clientWidth, viewer.clientHeight);
-    viewer.appendChild(renderer.domElement);
-
-    // Renderer CSS2D pour les labels HTML, superpose au canvas WebGL.
-    const labelRenderer = new CSS2DRenderer();
-    labelRenderer.setSize(viewer.clientWidth, viewer.clientHeight);
-    labelRenderer.domElement.classList.add("css2d-layer");
-    viewer.appendChild(labelRenderer.domElement);
-
-    // ---------------- Controles orbitaux (camera uniquement) ----------------
-    // OrbitControls deplace la CAMERA, donc ne modifie pas les coordonnees
-    // monde des sommets ni la matrice. C'est le comportement voulu.
-    const controls = new OrbitControls(camera, labelRenderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.target.set(0.5, 0.5, 0.5);
-    controls.update();
-
-    // ---------------- Eclairage ----------------
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambient);
-    const directional = new THREE.DirectionalLight(0xffffff, 0.8);
-    directional.position.set(4, -3, 6);
-    scene.add(directional);
-
-    // ---------------- Sol de reference : grille + axes ----------------
-    // GridHelper est par defaut dans le plan XZ ; on le tourne pour le mettre
-    // dans le plan horizontal XY (z = 0) puisque Z est notre verticale.
-    const grid = new THREE.GridHelper(10, 10, 0x9fb4c8, 0xcdd9e4);
-    grid.rotation.x = Math.PI / 2;
-    scene.add(grid);
-
-    // ---------------- Graduations numeriques des axes X et Y ----------------
-    // Petits labels CSS2D fixes dans la scene (au niveau z = 0) indiquant les
-    // valeurs entieres le long de l'abscisse (X) et de l'ordonnee (Y). Comme ils
-    // sont ajoutes a la scene (et non au cubeGroup), ils restent fixes quand le
-    // cube roule, servant de reperes pour lire les coordonnees.
-    function makeAxisTick(text, x, y, variant) {
-      const div = document.createElement("div");
-      div.className = "axis-tick axis-tick-" + variant;
-      div.textContent = text;
-      const obj = new CSS2DObject(div);
-      obj.position.set(x, y, 0);
-      scene.add(obj);
-    }
-    const GRID_HALF = 5;   // la grille s'etend de -5 a 5 sur X et Y
-    const TICK_GAP = 0.12; // faible decalage : les chiffres collent a leur axe
-
-    // Lignes d'axes colorees traversant toute la grille (memes teintes que les
-    // chiffres) : rouge = X, vert = Y, bleu = Z. Tracees avec un leger surelevement
-    // en Z pour rester visibles au dessus de la grille du sol.
-    function makeAxisLine(from, to, color) {
-      const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
-      const mat = new THREE.LineBasicMaterial({ color: color });
-      scene.add(new THREE.Line(geo, mat));
-    }
-    const zLift = 0.002; // evite le z-fighting avec la grille
-    makeAxisLine(
-      new THREE.Vector3(-GRID_HALF, 0, zLift),
-      new THREE.Vector3(GRID_HALF, 0, zLift),
-      0xd23b3b // X rouge
-    );
-    makeAxisLine(
-      new THREE.Vector3(0, -GRID_HALF, zLift),
-      new THREE.Vector3(0, GRID_HALF, zLift),
-      0x1f9e4d // Y vert
-    );
-    makeAxisLine(
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, 2),
-      0x3b6fd2 // Z bleu (vertical)
-    );
-    for (let i = -GRID_HALF; i <= GRID_HALF; i++) {
-      if (i === 0) continue; // l'origine est traitee a part pour eviter le doublon
-      // Abscisse (X) : graduations rouges, juste sous l'axe X.
-      makeAxisTick(String(i), i, -TICK_GAP, "x");
-      // Ordonnee (Y) : graduations vertes, juste a gauche de l'axe Y.
-      makeAxisTick(String(i), -TICK_GAP, i, "y");
-    }
-    // Origine affichee une seule fois.
-    makeAxisTick("0", -TICK_GAP, -TICK_GAP, "o");
-
-    // ---------------- Construction du cube dans un groupe ----------------
-    // cubeGroup contient le maillage du cube. Au depart, sa matrice est
-    // l'identite : les positions locales des sommets sont donc aussi leurs
-    // positions monde, ce qui garantit la correspondance exacte avec A..H.
-    const cubeGroup = new THREE.Group();
-    scene.add(cubeGroup);
-
-    // BoxGeometry de taille 1 centree sur l'origine ; on translate la
-    // geometrie pour que le cube occupe exactement [0,1]x[0,1]x[0,1].
-    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-    boxGeo.translate(0.5, 0.5, 0.5);
-
-    const boxMat = new THREE.MeshStandardMaterial({
-      color: 0x4a90d9,
-      transparent: true,
-      opacity: 0.55,
-      metalness: 0.05,
-      roughness: 0.6
-    });
-    const cubeMesh = new THREE.Mesh(boxGeo, boxMat);
-    cubeGroup.add(cubeMesh);
-
-    // Mise en evidence des aretes (couleur foncee) pour la lisibilite.
-    const edges = new THREE.EdgesGeometry(boxGeo);
-    const edgeMat = new THREE.LineBasicMaterial({ color: 0x14304d });
-    const edgeLines = new THREE.LineSegments(edges, edgeMat);
-    cubeGroup.add(edgeLines);
-
-    // ---------------- Noeuds des sommets + labels CSS2D ----------------
-    // Pour chaque sommet, on cree un Object3D place a la position locale du
-    // sommet. On y attache un label HTML decale vers l'exterieur du cube.
-    // Comme ces noeuds sont enfants de cubeGroup, ils suivent le cube quand
-    // il roule, et leur position monde donne directement la valeur a afficher.
-    const CENTER = new THREE.Vector3(0.5, 0.5, 0.5);
-    const vertexNodes = {}; // vertexNodes["A"] = Object3D
-
-    for (const name of VERTEX_NAMES) {
-      const [x, y, z] = VERTEX_LOCAL[name];
-      const node = new THREE.Object3D();
-      node.position.set(x, y, z);
-      cubeGroup.add(node);
-      vertexNodes[name] = node;
-
-      // Direction sommet -> exterieur, pour decaler legerement le label.
-      const dir = new THREE.Vector3(x, y, z).sub(CENTER).normalize();
-
-      const div = document.createElement("div");
-      div.className = "vertex-label";
-      div.textContent = name;
-
-      const label = new CSS2DObject(div);
-      // Le label est decale vers l'exterieur du sommet (facteur ~0.25).
-      label.position.copy(dir.multiplyScalar(0.25));
-      node.add(label);
-    }
-
-    // ====================================================================
-    //  Mecanique de roulement du cube
-    // ====================================================================
-    // Verrou empechant les roulements qui se chevauchent.
-    let isRolling = false;
-
-    // Sequence des mouvements effectues depuis le dernier etat de depart.
-    // Sert a nommer les sauvegardes (H=Haut, B=Bas, G=Gauche, D=Droite).
-    let moveSequence = [];
-
-    // Reutilisation d'un vecteur temporaire pour la mise a jour de la matrice.
-    const tmpVec = new THREE.Vector3();
-
-    // Arrondi qui evite l'affichage de "-0".
-    function cleanNumber(value, decimals) {
-      let v = Number(value.toFixed(decimals));
-      if (v === 0) v = 0; // transforme -0 en 0
-      return v;
-    }
-
-    // Met a jour les 8 lignes de la matrice a partir des positions monde.
-    function updateMatrix(decimals) {
-      for (const name of VERTEX_NAMES) {
-        const node = vertexNodes[name];
-        // Position monde = position locale transformee par la matrice monde.
-        node.getWorldPosition(tmpVec);
-        cellRefs[name].x.textContent = String(cleanNumber(tmpVec.x, decimals));
-        cellRefs[name].y.textContent = String(cleanNumber(tmpVec.y, decimals));
-        cellRefs[name].z.textContent = String(cleanNumber(tmpVec.z, decimals));
-      }
-    }
-
-    // ---- Determination des 4 aretes au sol ----
-    // On calcule la position monde des 8 sommets, on trouve le z minimal,
-    // puis on identifie les 4 sommets a ce niveau (la face en contact).
-    function getBottomVertices() {
-      const positions = VERTEX_NAMES.map((name) => {
-        const p = new THREE.Vector3();
-        vertexNodes[name].getWorldPosition(p);
-        return { name, p };
-      });
-      let minZ = Infinity;
-      for (const v of positions) minZ = Math.min(minZ, v.p.z);
-      // Tolerance pour comparer des flottants.
-      return positions.filter((v) => Math.abs(v.p.z - minZ) < 1e-3);
-    }
-
-    // ---- Roulement dans une direction donnee ----
-    // dir : "up", "down", "left", "right"
-    // Convention ecran -> monde :
-    //   up    = rouler vers +Y
-    //   down  = rouler vers -Y
-    //   right = rouler vers +X
-    //   left  = rouler vers -X
-    function roll(dir) {
-      if (isRolling) return; // un roulement est deja en cours
-      isRolling = true;
-
-      const bottom = getBottomVertices();
-
-      // Centre de la face au sol (moyenne des 4 sommets au contact).
-      const faceCenter = new THREE.Vector3();
-      for (const v of bottom) faceCenter.add(v.p);
-      faceCenter.multiplyScalar(1 / bottom.length);
-
-      // On choisit l'arrete basse situee du cote ou l'on veut rouler, ainsi
-      // que l'axe et le sens de rotation. Le pivot est place sur cette arrete.
-
-      let pivotPoint;   // un point sur l'arrete (au sol)
-      let axis;         // axe de rotation (horizontal)
-      let angle;        // angle signe de 90 degres
-
-      // minZ commun a la face au sol.
-      const groundZ = bottom[0].p.z;
-
-      if (dir === "up" || dir === "down") {
-        // Roulement autour d'un axe parallele a X.
-        // On cherche l'arrete (deux sommets) ayant le y extreme du cote vise.
-        let targetY;
-        if (dir === "up") {
-          targetY = Math.max(...bottom.map((v) => v.p.y));
-          axis = new THREE.Vector3(1, 0, 0);
-          angle = -Math.PI / 2; // rotation autour de +X qui bascule vers +Y
-        } else {
-          targetY = Math.min(...bottom.map((v) => v.p.y));
-          axis = new THREE.Vector3(1, 0, 0);
-          angle = Math.PI / 2;  // bascule vers -Y
-        }
-        pivotPoint = new THREE.Vector3(faceCenter.x, targetY, groundZ);
-      } else {
-        // Roulement autour d'un axe parallele a Y.
-        let targetX;
-        if (dir === "right") {
-          targetX = Math.max(...bottom.map((v) => v.p.x));
-          axis = new THREE.Vector3(0, 1, 0);
-          angle = Math.PI / 2;  // rotation autour de +Y qui bascule vers +X
-        } else {
-          targetX = Math.min(...bottom.map((v) => v.p.x));
-          axis = new THREE.Vector3(0, 1, 0);
-          angle = -Math.PI / 2; // bascule vers -X
-        }
-        pivotPoint = new THREE.Vector3(targetX, faceCenter.y, groundZ);
-      }
-
-      // ---- Mise en place du pivot temporaire ----
-      // On cree un groupe place sur l'arrete au sol, puis on y rattache le
-      // cubeGroup avec attach() qui preserve la transformation monde.
-      const pivot = new THREE.Group();
-      pivot.position.copy(pivotPoint);
-      scene.add(pivot);
-      pivot.attach(cubeGroup); // le cube conserve sa pose monde
-
-      // ---- Animation de la rotation du pivot de 0 a angle ----
-      const duration = 350; // millisecondes
-      const startTime = performance.now();
-      const quatStart = pivot.quaternion.clone();
-      const quatDelta = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-      const quatEnd = quatDelta.clone().multiply(quatStart);
-
-      function easeInOut(t) {
-        // Easing doux (smoothstep) pour un mouvement naturel.
-        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      }
-
-      function animateRoll(now) {
-        const elapsed = now - startTime;
-        let t = Math.min(elapsed / duration, 1);
-        const e = easeInOut(t);
-
-        // Interpolation spherique entre l'orientation de depart et d'arrivee.
-        pivot.quaternion.copy(quatStart).slerp(quatEnd, e);
-
-        if (t < 1) {
-          requestAnimationFrame(animateRoll);
-        } else {
-          // ---- Fin du roulement : on fige la transformation ----
-          pivot.quaternion.copy(quatEnd);
-          // On rattache le cube a la scene (preserve la transformation monde).
-          scene.attach(cubeGroup);
-          scene.remove(pivot);
-
-          // ---- Snap : on arrondit position et rotation pour eviter la derive ----
-          cubeGroup.position.x = Math.round(cubeGroup.position.x);
-          cubeGroup.position.y = Math.round(cubeGroup.position.y);
-          cubeGroup.position.z = Math.round(cubeGroup.position.z);
-
-          // Snap de l'orientation : on arrondit les angles d'Euler au plus
-          // proche multiple de 90 degres, puis on reconstruit le quaternion.
-          const euler = new THREE.Euler().setFromQuaternion(cubeGroup.quaternion, "XYZ");
-          const half = Math.PI / 2;
-          euler.x = Math.round(euler.x / half) * half;
-          euler.y = Math.round(euler.y / half) * half;
-          euler.z = Math.round(euler.z / half) * half;
-          cubeGroup.quaternion.setFromEuler(euler);
-          cubeGroup.updateMatrixWorld(true);
-
-          // On memorise le mouvement dans la sequence courante.
-          moveSequence.push(dir);
-
-          isRolling = false;
-        }
-      }
-      requestAnimationFrame(animateRoll);
-    }
-
-    // ---------------- Branchement des boutons ----------------
-    document.getElementById("btn-up").addEventListener("click", () => roll("up"));
-    document.getElementById("btn-down").addEventListener("click", () => roll("down"));
-    document.getElementById("btn-left").addEventListener("click", () => roll("left"));
-    document.getElementById("btn-right").addEventListener("click", () => roll("right"));
-
-    // ---------------- Reinitialisation du cube ----------------
-    // Remet le cube a sa pose d'origine : position (0,0,0) et orientation
-    // identite, ce qui restaure les coordonnees initiales A(0,0,0)..H(0,1,1).
-    // Ignore l'appel si un roulement est en cours pour ne pas casser l'animation.
-    function resetCube() {
-      if (isRolling) return;
-      cubeGroup.position.set(0, 0, 0);
-      cubeGroup.quaternion.identity();
-      cubeGroup.updateMatrixWorld(true);
-      moveSequence = [];
-      updateMatrix(0);
-    }
-    document.getElementById("btn-reset").addEventListener("click", resetCube);
-
-    // ====================================================================
-    //  Sauvegarde / rechargement d'etats du cube
-    // ====================================================================
-    // Une sauvegarde memorise la pose complete du cube (position + orientation)
-    // et la sequence de mouvements qui y a mene. Recharger un etat replace le
-    // cube exactement (donc la matrice se met a jour automatiquement).
-    const savesList = document.getElementById("saves-list");
-    const savesEmpty = document.getElementById("saves-empty");
-
-    // Correspondance direction -> lettre courte pour nommer la sequence.
-    const DIR_LABEL = { up: "H", down: "B", left: "G", right: "D" };
-
-    // Construit le nom d'une sauvegarde a partir de sa sequence de mouvements.
-    function sequenceName(seq) {
-      if (seq.length === 0) return "Etat initial";
-      return seq.map((d) => DIR_LABEL[d]).join(" ");
-    }
-
-    // Capture l'etat courant du cube (refuse pendant une animation).
-    function captureState() {
-      const q = cubeGroup.quaternion;
-      const p = cubeGroup.position;
-      return {
-        sequence: moveSequence.slice(),
-        pos: { x: p.x, y: p.y, z: p.z },
-        quat: { x: q.x, y: q.y, z: q.z, w: q.w }
-      };
-    }
-
-    // Replace le cube dans l'etat sauvegarde et restaure la sequence associee.
-    function loadState(state) {
-      if (isRolling) return;
-      cubeGroup.position.set(state.pos.x, state.pos.y, state.pos.z);
-      cubeGroup.quaternion.set(state.quat.x, state.quat.y, state.quat.z, state.quat.w);
-      cubeGroup.updateMatrixWorld(true);
-      moveSequence = state.sequence.slice();
-      updateMatrix(0);
-    }
-
-    // Ajoute une entree (nom cliquable + croix de suppression) dans la liste.
-    function addSaveEntry(state) {
-      if (savesEmpty) savesEmpty.style.display = "none";
-
-      const li = document.createElement("li");
-      li.className = "save-item";
-
-      const nameBtn = document.createElement("button");
-      nameBtn.type = "button";
-      nameBtn.className = "save-name";
-      nameBtn.textContent = sequenceName(state.sequence);
-      nameBtn.title = "Recharger cet etat";
-      nameBtn.addEventListener("click", () => loadState(state));
-
-      const delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "save-del";
-      delBtn.textContent = "x";
-      delBtn.title = "Supprimer cette sauvegarde";
-      delBtn.addEventListener("click", () => {
-        li.remove();
-        // Reaffiche le message si plus aucune sauvegarde.
-        if (savesEmpty && savesList.querySelectorAll(".save-item").length === 0) {
-          savesEmpty.style.display = "";
-        }
-      });
-
-      li.appendChild(nameBtn);
-      li.appendChild(delBtn);
-      savesList.appendChild(li);
-    }
-
-    // Le bouton de sauvegarde capture l'etat courant (sauf pendant une animation).
-    document.getElementById("btn-save").addEventListener("click", () => {
-      if (isRolling) return;
-      addSaveEntry(captureState());
-    });
-
-    // ---------------- Branchement du clavier (fleches) ----------------
-    window.addEventListener("keydown", (event) => {
-      let handled = true;
-      switch (event.key) {
-        case "ArrowUp": roll("up"); break;
-        case "ArrowDown": roll("down"); break;
-        case "ArrowLeft": roll("left"); break;
-        case "ArrowRight": roll("right"); break;
-        default: handled = false;
-      }
-      // Empeche le defilement de la page avec les fleches.
-      if (handled) event.preventDefault();
-    });
-
-    // ---------------- Gestion du redimensionnement ----------------
-    function onResize() {
-      const w = viewer.clientWidth;
-      const h = viewer.clientHeight;
-      if (w === 0 || h === 0) return;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      labelRenderer.setSize(w, h);
-    }
-    window.addEventListener("resize", onResize);
-
-    // ---------------- Boucle de rendu unique ----------------
-    // Une seule boucle : OrbitControls, mise a jour matrice, rendu WebGL,
-    // rendu des labels CSS2D.
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      // 2 decimales pendant l'animation, valeurs entieres au repos.
-      updateMatrix(isRolling ? 2 : 0);
-      renderer.render(scene, camera);
-      labelRenderer.render(scene, camera);
-    }
-
-    // Initialisation de la matrice avec les valeurs de depart, puis demarrage.
-    updateMatrix(0);
-    animate();
-
-  } catch (err) {
-    // Toute erreur d'initialisation est remontee a l'appelant.
-    throw err;
-  }
-}
-</script>
+<!-- Montage de l'application (coeur produit + moteur de defis + banc) -->
+<script type="module" src="src/bench/main.js"></script>
 
 </body>
 </html>
