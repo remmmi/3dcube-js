@@ -7,6 +7,10 @@ coordonnees monde de ses sommets en temps reel. Three.js est charge via CDN.
 Le code separe un coeur portable (transposable en C++) d'un banc de
 developpement navigateur.
 
+## Demo
+
+En ligne : https://remmmi.github.io/3dcube-js/
+
 ## Structure
 
 - `index.html` : page, import map Three.js, montage du banc.
