@@ -16,10 +16,10 @@ export function creerGestionnaireDefis() {
     actif = modules.get(id);
     actif.init();
   }
-  function onCalibration() { if (actif) actif.onCalibration(); }
+  function onCalibration(nordMonde) { if (actif) actif.onCalibration(nordMonde); }
   function onCoupRecu(directionMonde) { if (actif) actif.onCoup(directionMonde); }
   function onReset() { if (actif) actif.onReset(); }
-  function tick(temps) { if (actif) actif.tick(temps); }
+  function tick(temps, auRepos) { if (actif) actif.tick(temps, auRepos); }
 
   return { enregistrer, activer, onCalibration, onCoupRecu, onReset, tick, get actif() { return actif; } };
 }

@@ -306,10 +306,55 @@ trigonometrie du cube. On peut charger un autre module sans toucher au coeur.
 
 ## 9. Le Defi 1 (dechiffrage sur 6 coups)
 
-Code de flash des directions : 1 = Haut, 2 = Droite, 3 = Bas, 4 = Gauche. Les
-motifs sont concus pour une seule LED (groupes de flashs separes par des pauses
-nettes, motif d'erreur franc et distinct), conformement au canal de sortie
-etroit de la section 3.
+### Convention cardinale : le Nord du cube
+
+Le cube parle dans sa propre rose des vents : Nord / Est / Sud / Ouest **du
+cube** (toujours dire "du cube" : ce n'est pas le Nord magnetique de la salle,
+le MPU-6050 n'a pas de magnetometre).
+
+Le Nord n'est pas une constante cablee : il est **pose par le coup de
+calibration**. Le premier coup definit Nord du cube = direction monde de ce
+roulement. C'est realisable sans boussole : le cube n'a aucun repere monde tant
+qu'il n'en pose pas un, et c'est precisement ce que fait le premier coup. Tout
+le reste se mesure relativement a ce Nord via l'orientation M.
+
+C'est un **cap monde fixe** : une fois le Nord pose, la rose ne tourne plus de la
+partie. Elle est rigide, donc les autres cardinaux suivent le Nord (sens
+horaire) :
+
+- Nord du cube  = direction du coup de calibration (flash : 1)
+- Est du cube   = Nord tourne de  90 degres horaire   (flash : 2)
+- Sud du cube   = Nord tourne de 180 degres            (flash : 3)
+- Ouest du cube = Nord tourne de 270 degres            (flash : 4)
+
+Exemple : calibration vers la gauche (x-) => Nord = Gauche, donc Est = Haut,
+Sud = Droite, Ouest = Bas. Le cube flashe 1 (Nord) => il attend un roulement
+vers la gauche.
+
+Le cube verifie chaque coup par M (corps vers monde) ; il n'a jamais besoin de
+connaitre une direction absolue. Un **cap embarque** (la rose tourne avec le
+cube quand il culbute, exigeant un suivi mental de l'orientation) est reserve a
+un futur module de defi ; il reutilisera la meme machinerie M.
+
+Deux vocabulaires distincts, pour qu'un mot n'ait jamais deux sens :
+
+- **Le cube demande en cardinaux** (N/E/S/O du cube), exprimes par des flashs.
+- **Le joueur agit en gestes** (fleches Haut/Bas/Gauche/Droite = bascule physique
+  ancree au repere xy de la table).
+
+La calibration relie les deux : le geste de calibration pose le Nord.
+
+### Voyant et motifs lumineux
+
+Sortie unique : un voyant (LED simulee au banc par une barre pleine largeur sous
+la vue 3D). Trois motifs, concus pour etre distinguables a l'oeil sur ce canal
+etroit :
+
+- **Code** (jaune) : 1 a 4 flashs = cardinal demande (1 = Nord, 2 = Est,
+  3 = Sud, 4 = Ouest du cube).
+- **Erreur** (rouge) : clignotement rapide, environ 6 Hz pendant 3 s.
+- **Succes** (vert) : clignotement accelere de 2 Hz a 20 Hz sur 5 s, a la
+  resolution des 6 coups.
 
 Deroulement :
 
@@ -321,13 +366,15 @@ Deroulement :
 3. Pour chaque cible, on attend un coup ; `onCoup(directionMonde)` compare la
    direction monde a la cible courante :
    - **Bon coup** : pause 1 s, on incremente l'indice, on flashe la cible
-     suivante. Si l'indice atteint 6, le defi est resolu.
+     suivante. Si l'indice atteint 6, le defi est resolu : flash de succes vert.
    - **Mauvais coup** : clignotement d'erreur (6 Hz pendant 3 s), `onReset()`,
      on repasse en attente d'un coup de recalibration avant de reprendre la
      sequence depuis le debut.
 
 Tous les delais (pause 1 s, clignotement 3 s, cadence de flash) sont geres par
-`tick(temps)`, jamais par une pause bloquante.
+`tick(temps, auRepos)`, jamais par une pause bloquante. Le flash du cardinal
+n'est amorce que lorsque le cube est immobile (`auRepos`, fourni par le capteur
+de mouvement) : il ne demarre donc pas pendant un roulement.
 
 Validation une par une : on ne remet pas le monde physique a zero entre les
 coups ; on valide la direction monde de chaque roulement contre la cible

@@ -73,7 +73,8 @@ async function demarrer() {
   const vue = creerVue3D({
     THREE, OrbitControls, CSS2DRenderer, CSS2DObject, conteneur: viewer,
     onFrame: (temps) => {
-      gestion.tick(temps);
+      // Le defi n'amorce le flash que lorsque le cube est immobile (auRepos).
+      gestion.tick(temps, !vue.estEnAnimation());
       matrice.rafraichir(vue.lirePositionsMonde(), vue.estEnAnimation() ? 2 : 0);
     },
   });
@@ -87,9 +88,10 @@ async function demarrer() {
 
     if (etat.attendCalibration) {
       // Premier coup (ou recalibration apres erreur) : coup de calibration pur.
-      // Il roule visuellement mais ne compte pas ; le coeur se reinitialise.
+      // Il roule visuellement mais ne compte pas ; il POSE le Nord du cube =
+      // direction monde de ce coup. Le coeur se reinitialise ensuite.
       vue.animerRoulement(direction, () => {});
-      gestion.onCalibration();
+      gestion.onCalibration(direction);
       sequence = [];
       return;
     }

@@ -70,15 +70,16 @@
     gap: 14px;
   }
 
-  /* Colonne centrale large : la visualisation 3D */
+  /* Colonne centrale large : la visualisation 3D, avec le voyant en barre dessous */
   .panel-right {
     flex: 1 1 auto;
     min-width: 0;
     background: #ffffff;
     border: 1px solid #d4dde6;
     border-radius: 8px;
-    position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   /* Troisieme colonne a droite : les etats sauvegardes */
@@ -234,6 +235,12 @@
     background: #aab7c4;
     cursor: not-allowed;
   }
+  /* Les commandes directionnelles affichent une grande fleche (geste physique) */
+  #btn-up, #btn-down, #btn-left, #btn-right {
+    font-size: 20px;
+    line-height: 1;
+    padding: 7px 0;
+  }
   /* Bouton de reinitialisation : largeur double et couleur distincte */
   .controls button.reset {
     width: 162px;
@@ -244,39 +251,29 @@
   .controls button.reset:active { background: #364049; }
   .controls .spacer { width: 78px; }
 
-  /* Voyant lumineux : LED simulee du cube escape-room */
-  .voyant-bloc {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 6px;
-  }
-  .voyant {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: #222;
-    border: 2px solid #0d141c;
-    flex: 0 0 auto;
-    transition: background 0.05s linear, box-shadow 0.05s linear;
-  }
-  .voyant-bloc span {
-    font-size: 12px;
-    color: #5a6b7b;
-  }
-
   .hint {
     font-size: 12px;
     color: #5a6b7b;
     line-height: 1.4;
   }
 
-  /* Conteneur de rendu : le canvas WebGL et le CSS2DRenderer s'y superposent */
+  /* Conteneur de rendu : le canvas WebGL et le CSS2DRenderer s'y superposent.
+     Flexible en hauteur ; la barre voyant occupe le bas de la colonne. */
   #viewer {
-    position: absolute;
-    inset: 0;
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
     width: 100%;
-    height: 100%;
+    overflow: hidden;
+  }
+  /* Voyant : barre pleine largeur de 2em, toute la surface s'allume. */
+  #voyant {
+    flex: 0 0 2em;
+    height: 2em;
+    width: 100%;
+    background: #15202b;
+    border-top: 1px solid #0d141c;
+    transition: background 0.02s linear, box-shadow 0.02s linear;
   }
   /* Le calque CSS2D doit laisser passer les evenements souris vers OrbitControls */
   #viewer .css2d-layer {
@@ -352,7 +349,7 @@
 
 <header class="page-title">
   <h1>Cube escape-room - Defi 1</h1>
-  <p>Jumeau numerique du cube physique. Faites-le rouler pour dechiffrer le code ; le voyant flashe la direction demandee.</p>
+  <p>Jumeau numerique du cube physique. Le voyant flashe un cardinal du cube (Nord pose par la calibration) ; faites basculer le cube pour dechiffrer le code.</p>
 </header>
 
 <div class="layout">
@@ -383,34 +380,28 @@
       <div class="controls">
         <div class="row">
           <div class="spacer"></div>
-          <button id="btn-up" type="button">Haut</button>
+          <button id="btn-up" type="button" title="Basculer vers le haut (+Y)" aria-label="Basculer vers le haut">&#8593;</button>
           <div class="spacer"></div>
         </div>
         <div class="row">
-          <button id="btn-left" type="button">Gauche</button>
-          <button id="btn-down" type="button">Bas</button>
-          <button id="btn-right" type="button">Droite</button>
+          <button id="btn-left" type="button" title="Basculer vers la gauche (-X)" aria-label="Basculer vers la gauche">&#8592;</button>
+          <button id="btn-down" type="button" title="Basculer vers le bas (-Y)" aria-label="Basculer vers le bas">&#8595;</button>
+          <button id="btn-right" type="button" title="Basculer vers la droite (+X)" aria-label="Basculer vers la droite">&#8594;</button>
         </div>
         <div class="row">
           <button id="btn-reset" type="button" class="reset">Reinitialiser</button>
         </div>
       </div>
-      <!-- Voyant lumineux : seule sortie du cube physique (LED simulee). -->
-      <div class="voyant-bloc">
-        <div id="voyant" class="voyant"></div>
-        <span>Voyant du cube (code de direction / erreur)</span>
-      </div>
-      <p class="hint">
-        Le premier coup calibre le cube (non compte). Ensuite, suivez le code
-        flashe par le voyant (1 = Haut, 2 = Droite, 3 = Bas, 4 = Gauche) sur 6
-        coups. La souris deplace seulement la camera, pas le cube.
-      </p>
     </div>
   </section>
 
-  <!-- ============ COLONNE CENTRALE : SCENE 3D ============ -->
+  <!-- ============ COLONNE CENTRALE : SCENE 3D + VOYANT ============ -->
   <section class="panel-right">
     <div id="viewer"><!-- Le canvas WebGL et le calque CSS2D seront injectes ici --></div>
+    <!-- Voyant lumineux : seule sortie du cube physique (LED simulee). Toute la
+         barre est le voyant : code de direction (jaune), erreur (rouge),
+         succes (vert accelere). -->
+    <div id="voyant" class="voyant" title="Voyant du cube"></div>
   </section>
 
   <!-- ============ COLONNE DROITE : ETATS SAUVEGARDES ============ -->
