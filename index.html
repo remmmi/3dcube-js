@@ -16,11 +16,11 @@
 }
 </script>
 
-<!-- Typographies : Chakra Petch (display carre, echo des facettes du cube),
+<!-- Typographies : Fredoka (display rond et chaleureux, registre organique),
      Inter (interface), JetBrains Mono (donnees de la matrice). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
 <style>
   /* ============================================================
@@ -46,9 +46,9 @@
     --green: #2ee27a;   /* succes */
     --cube:  #5bc8ff;   /* arretes du cube / axe Z */
 
-    --r-lg: 18px;
-    --r-md: 13px;
-    --r-sm: 9px;
+    --r-lg: 28px;
+    --r-md: 16px;
+    --r-sm: 12px;
     --shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.85);
   }
 
@@ -97,6 +97,35 @@
       radial-gradient(125% 95% at 50% 40%, transparent 36%, rgba(5, 8, 14, 0.42) 70%, rgba(3, 5, 9, 0.85) 100%);
   }
 
+  /* Aurore : nappes de lumiere douces qui derivent, fondues en mode ecran.
+     Ajoutent une atmosphere organique sans masquer le cube (elles eclaircissent). */
+  .aurora {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    overflow: hidden;
+    filter: blur(46px);
+    mix-blend-mode: screen;
+  }
+  .aurora .blob {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.55;
+  }
+  .aurora .blob--1 {
+    width: 48vw; height: 48vw; left: -10vw; bottom: -12vw;
+    background: radial-gradient(circle, rgba(54, 214, 196, 0.6), transparent 64%);
+  }
+  .aurora .blob--2 {
+    width: 42vw; height: 42vw; right: -8vw; top: -10vw;
+    background: radial-gradient(circle, rgba(132, 96, 255, 0.55), transparent 64%);
+  }
+  .aurora .blob--3 {
+    width: 36vw; height: 36vw; right: 16vw; bottom: -14vw;
+    background: radial-gradient(circle, rgba(91, 200, 255, 0.5), transparent 64%);
+  }
+
   /* ============ HUD : surcouche flottante ============ */
   /* Le conteneur laisse passer la souris (orbite libre) ; seuls les controles
      reels reactivent pointer-events. */
@@ -126,13 +155,13 @@
   }
   .briefing__title {
     margin: 0;
-    font-family: "Chakra Petch", sans-serif;
+    font-family: "Fredoka", sans-serif;
     font-weight: 700;
     font-size: clamp(30px, 5vw, 52px);
     line-height: 0.98;
     letter-spacing: -0.01em;
     color: var(--ink);
-    text-shadow: 0 2px 28px rgba(91, 200, 255, 0.18);
+    text-shadow: 0 0 32px rgba(91, 200, 255, 0.45), 0 0 12px rgba(91, 200, 255, 0.3);
   }
   .briefing__tag {
     margin: 16px 0 0;
@@ -171,41 +200,44 @@
     color: var(--mist);
   }
 
-  /* ---- Console (bas-centre) : D-pad lumineux, l'invitation a jouer ---- */
+  /* ---- Console (bas-gauche) : D-pad lumineux, l'invitation a jouer ---- */
   .console {
-    margin: 0 auto;
+    align-self: flex-start;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
     pointer-events: none;
   }
   .console__cue {
-    margin: 0;
-    font-family: "Chakra Petch", sans-serif;
-    font-size: 13px;
+    margin: 0 0 0 6px;
+    font-family: "Fredoka", sans-serif;
+    font-size: 14px;
     font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     color: var(--ink);
-    text-shadow: 0 0 18px rgba(255, 210, 59, 0.35);
+    text-shadow: 0 0 22px rgba(255, 210, 59, 0.4);
   }
 
-  /* D-pad : grille 3x2 en croix. */
+  /* D-pad : grille 3x2 en croix, contenant arrondi organique. */
   .dpad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-areas:
       ".    up    ."
       "left down right";
-    gap: 9px;
-    padding: 12px;
-    background: var(--deck);
+    gap: 11px;
+    padding: 16px;
+    background:
+      radial-gradient(120% 140% at 30% 0%, rgba(91, 200, 255, 0.1), transparent 60%),
+      var(--deck);
     border: 1px solid var(--edge-strong);
     border-radius: var(--r-lg);
-    box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    box-shadow: var(--shadow),
+                0 0 40px -8px rgba(91, 200, 255, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     pointer-events: auto;
   }
   .dkey--up { grid-area: up; }
@@ -213,18 +245,21 @@
   .dkey--left { grid-area: left; }
   .dkey--right { grid-area: right; }
 
+  /* Touches circulaires (bulles lumineuses) : registre organique. */
   .dkey {
-    width: clamp(54px, 8vw, 66px);
-    height: clamp(54px, 8vw, 66px);
+    width: clamp(54px, 8vw, 64px);
+    height: clamp(54px, 8vw, 64px);
     display: grid;
     place-items: center;
     color: var(--ink);
-    background: linear-gradient(180deg, rgba(40, 56, 84, 0.9), rgba(22, 33, 52, 0.9));
+    background: radial-gradient(130% 130% at 50% 22%, rgba(56, 76, 110, 0.95), rgba(20, 30, 48, 0.95));
     border: 1px solid var(--edge-strong);
-    border-radius: var(--r-md);
+    border-radius: 50%;
     cursor: pointer;
-    transition: transform 0.12s ease, box-shadow 0.18s ease,
-                border-color 0.18s ease, background 0.18s ease;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08),
+                inset 0 -6px 14px rgba(0, 0, 0, 0.35);
+    transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease,
+                border-color 0.22s ease, background 0.22s ease, color 0.22s ease;
   }
   .dkey svg { width: 40%; height: 40%; display: block; }
   .dkey--down svg { transform: rotate(180deg); }
@@ -233,17 +268,19 @@
 
   .dkey:hover {
     color: var(--amber);
-    border-color: rgba(255, 210, 59, 0.6);
-    background: linear-gradient(180deg, rgba(58, 78, 112, 0.95), rgba(30, 44, 68, 0.95));
-    box-shadow: 0 0 22px -2px rgba(255, 210, 59, 0.45);
-    transform: translateY(-1px);
+    border-color: rgba(255, 210, 59, 0.65);
+    background: radial-gradient(130% 130% at 50% 22%, rgba(74, 98, 138, 0.98), rgba(28, 40, 62, 0.98));
+    box-shadow: 0 0 34px -4px rgba(255, 210, 59, 0.55),
+                inset 0 1px 1px rgba(255, 255, 255, 0.12);
+    transform: translateY(-2px);
   }
   .dkey:active, .dkey.is-active {
     color: var(--void);
-    background: var(--amber);
+    background: radial-gradient(130% 130% at 50% 30%, #ffe27a, var(--amber));
     border-color: var(--amber);
-    box-shadow: 0 0 30px -2px rgba(255, 210, 59, 0.8);
-    transform: translateY(1px) scale(0.97);
+    box-shadow: 0 0 44px -2px rgba(255, 210, 59, 0.9),
+                inset 0 0 10px rgba(255, 255, 255, 0.5);
+    transform: translateY(1px) scale(0.95);
   }
   .dkey:focus-visible {
     outline: 2px solid var(--amber);
@@ -308,7 +345,8 @@
     position: fixed;
     top: clamp(16px, 3vw, 34px);
     right: clamp(16px, 3vw, 34px);
-    z-index: 31;
+    /* Sous le tiroir (z 30) : le tiroir ouvert recouvre et masque la pastille. */
+    z-index: 29;
     font-family: "JetBrains Mono", monospace;
     font-size: 11px;
     font-weight: 500;
@@ -365,7 +403,7 @@
   }
   .bench__name {
     margin: 0;
-    font-family: "Chakra Petch", sans-serif;
+    font-family: "Fredoka", sans-serif;
     font-size: 16px;
     font-weight: 600;
     letter-spacing: 0.04em;
@@ -561,6 +599,13 @@
       40%  { box-shadow: inset 0 0 26px rgba(255, 210, 59, 0.7), 0 0 18px rgba(255, 210, 59, 0.55); }
       100% { box-shadow: none; }
     }
+    /* Derive organique des nappes d'aurore (lente, respiratoire). */
+    .aurora .blob--1 { animation: drift-1 19s ease-in-out infinite alternate; }
+    .aurora .blob--2 { animation: drift-2 23s ease-in-out infinite alternate; }
+    .aurora .blob--3 { animation: drift-3 17s ease-in-out infinite alternate; }
+    @keyframes drift-1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(8vw, -6vh) scale(1.12); } }
+    @keyframes drift-2 { from { transform: translate(0, 0) scale(1); } to { transform: translate(-7vw, 7vh) scale(1.1); } }
+    @keyframes drift-3 { from { transform: translate(0, 0) scale(1.05); } to { transform: translate(-5vw, -5vh) scale(0.95); } }
   }
 
   /* ============ Responsive : tablette / mobile ============ */
@@ -582,6 +627,11 @@
 <!-- Le canvas WebGL et le calque CSS2D des labels sont injectes ici par la vue. -->
 <main id="viewer" aria-label="Scene 3D du cube qui roule"></main>
 <div class="stage-vignette" aria-hidden="true"></div>
+<div class="aurora" aria-hidden="true">
+  <span class="blob blob--1"></span>
+  <span class="blob blob--2"></span>
+  <span class="blob blob--3"></span>
+</div>
 
 <!-- ============ HUD : surcouche flottante (n'intercepte pas l'orbite) ============ -->
 <div class="hud">

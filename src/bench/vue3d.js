@@ -21,7 +21,11 @@ const ROULEMENT_VUE = {
 
 // Cree la vue 3D dans le conteneur donne. Retourne une API qui masque Three.js.
 // onFrame(temps) est appele a chaque frame (pour cadencer le defi via tick).
-export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, conteneur, onFrame }) {
+export function creerVue3D({
+  THREE, OrbitControls, CSS2DRenderer, CSS2DObject,
+  EffectComposer, RenderPass, UnrealBloomPass, OutputPass,
+  conteneur, onFrame,
+}) {
   const scene = new THREE.Scene();
   // Salle sombre : fond bleu nuit et brume pour fondre le sol dans le noir.
   scene.background = new THREE.Color(0x0a0f1a);
@@ -37,6 +41,22 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(conteneur.clientWidth, conteneur.clientHeight);
   conteneur.appendChild(renderer.domElement);
+
+  // ---- Post-traitement : bloom pour une lueur organique ----
+  // Seules les zones lumineuses (arretes du cube, halo, axes) diffusent ; le
+  // fond sombre reste net. OutputPass applique la conversion sRGB en fin de pile.
+  const composer = new EffectComposer(renderer);
+  composer.setPixelRatio(window.devicePixelRatio);
+  composer.setSize(conteneur.clientWidth, conteneur.clientHeight);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(conteneur.clientWidth, conteneur.clientHeight),
+    0.95, // force
+    0.7,  // rayon (diffusion douce)
+    0.5   // seuil de luminosite
+  );
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
 
   // Calque CSS2D pour les labels HTML, superpose au canvas WebGL.
   const labelRenderer = new CSS2DRenderer();
@@ -58,9 +78,13 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
   const directional = new THREE.DirectionalLight(0xffffff, 0.95);
   directional.position.set(4, -3, 6);
   scene.add(directional);
-  const fill = new THREE.DirectionalLight(0x5bc8ff, 0.45);
-  fill.position.set(-5, 4, 3);
+  // Bi-teinte aurore : remplissage cyan d'un cote, frange violette de l'autre.
+  const fill = new THREE.DirectionalLight(0x5bc8ff, 0.5);
+  fill.position.set(-6, 2, 3);
   scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xb478ff, 0.5);
+  rim.position.set(6, 4, -1);
+  scene.add(rim);
 
   // Sol : grille holographique (lignes bleutees qui se perdent dans la brume).
   const grid = new THREE.GridHelper(10, 10, 0x3a72ad, 0x18283f);
@@ -114,6 +138,31 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
   const edges = new THREE.EdgesGeometry(boxGeo);
   const edgeMat = new THREE.LineBasicMaterial({ color: 0x7fe3ff });
   cubeGroup.add(new THREE.LineSegments(edges, edgeMat));
+
+  // Halo organique : nappe de lumiere additive posee au sol, qui suit le cube.
+  // Texture radiale generee a la volee (degrade cyan vers transparent).
+  function textureHalo() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d");
+    const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grd.addColorStop(0, "rgba(130,235,255,0.6)");
+    grd.addColorStop(0.4, "rgba(80,180,255,0.2)");
+    grd.addColorStop(1, "rgba(80,180,255,0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+  const halo = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.2, 4.2),
+    new THREE.MeshBasicMaterial({
+      map: textureHalo(), transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, fog: false,
+    })
+  );
+  halo.position.set(0.5, 0.5, 0.02); // plan XY = sol (axe Z vertical)
+  scene.add(halo);
+  const haloTmp = new THREE.Vector3();
 
   // Noeuds des sommets + labels CSS2D, enfants du cubeGroup (ils suivent le cube).
   const CENTER = new THREE.Vector3(0.5, 0.5, 0.5);
@@ -297,6 +346,7 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
+    composer.setSize(w, h);
     labelRenderer.setSize(w, h);
   }
   window.addEventListener("resize", onResize);
@@ -313,8 +363,13 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
       if (t >= 1) recadrage = null;
     }
     controls.update();
+    // Le halo suit le centre horizontal du cube (nappe de lumiere au sol).
+    haloTmp.set(0.5, 0.5, 0);
+    cubeGroup.localToWorld(haloTmp);
+    halo.position.x = haloTmp.x;
+    halo.position.y = haloTmp.y;
     if (onFrame) onFrame(performance.now());
-    renderer.render(scene, camera);
+    composer.render();
     labelRenderer.render(scene, camera);
   }
   // Demarrage differe : le premier frame s'execute apres le retour de creerVue3D,
