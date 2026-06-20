@@ -54,6 +54,11 @@ async function demarrer() {
   const THREE = await import("three");
   const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
   const { CSS2DRenderer, CSS2DObject } = await import("three/addons/renderers/CSS2DRenderer.js");
+  // Post-traitement : pile de bloom pour la lueur organique de la scene.
+  const { EffectComposer } = await import("three/addons/postprocessing/EffectComposer.js");
+  const { RenderPass } = await import("three/addons/postprocessing/RenderPass.js");
+  const { UnrealBloomPass } = await import("three/addons/postprocessing/UnrealBloomPass.js");
+  const { OutputPass } = await import("three/addons/postprocessing/OutputPass.js");
 
   // ---- Coeur produit ----
   const coeur = creerCubeState();
@@ -71,7 +76,9 @@ async function demarrer() {
 
   // ---- Vue 3D : cadence le defi (tick) et rafraichit la matrice a chaque frame ----
   const vue = creerVue3D({
-    THREE, OrbitControls, CSS2DRenderer, CSS2DObject, conteneur: viewer,
+    THREE, OrbitControls, CSS2DRenderer, CSS2DObject,
+    EffectComposer, RenderPass, UnrealBloomPass, OutputPass,
+    conteneur: viewer,
     onFrame: (temps) => {
       // Le defi n'amorce le flash que lorsque le cube est immobile (auRepos).
       gestion.tick(temps, !vue.estEnAnimation());
