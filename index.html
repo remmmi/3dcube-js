@@ -2,8 +2,9 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cube MultiDefis</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#090e18" />
+<title>Cube - la salle sombre</title>
 
 <!-- Import map : chargement asynchrone de Three.js depuis le CDN jsDelivr -->
 <script type="importmap">
@@ -15,103 +16,445 @@
 }
 </script>
 
+<!-- Typographies : Chakra Petch (display carre, echo des facettes du cube),
+     Inter (interface), JetBrains Mono (donnees de la matrice). -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
 <style>
-  /* Reglages globaux de la page */
+  /* ============================================================
+     Systeme de design "La salle sombre"
+     ============================================================ */
+  :root {
+    /* La piece sombre */
+    --void: #090e18;
+    --deck: rgba(18, 26, 41, 0.72);
+    --deck-solid: #0f1726;
+    --glass: rgba(20, 30, 48, 0.55);
+    --edge: rgba(120, 160, 210, 0.16);
+    --edge-strong: rgba(120, 160, 210, 0.32);
+
+    /* Encres */
+    --ink: #eaf1fb;
+    --mist: #8ea2bd;
+    --faint: #62748f;
+
+    /* Le langage lumineux du cube (memes teintes que les flashs LED) */
+    --amber: #ffd23b;   /* code / action principale */
+    --red:   #ff4d4d;   /* erreur */
+    --green: #2ee27a;   /* succes */
+    --cube:  #5bc8ff;   /* arretes du cube / axe Z */
+
+    --r-lg: 18px;
+    --r-md: 13px;
+    --r-sm: 9px;
+    --shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.85);
+  }
+
   * { box-sizing: border-box; }
 
   html, body {
     margin: 0;
     padding: 0;
     height: 100%;
-    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
-    color: #1c2733;
-    background: #eef2f6;
-  }
-
-  /* Titre principal de la page */
-  header.page-title {
-    padding: 14px 20px;
-    background: #1f3a5f;
-    color: #ffffff;
-  }
-  header.page-title h1 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-  }
-  header.page-title p {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: #c8d8ea;
-  }
-
-  /* Conteneur en colonnes */
-  .layout {
-    display: flex;
-    flex-direction: row;
-    gap: 14px;
-    padding: 14px;
-    align-items: stretch;
-    /* Hauteur restante sous le titre */
-    height: calc(100vh - 64px);
-  }
-
-  /* Colonne gauche etroite : la matrice */
-  .panel-left {
-    flex: 0 0 320px;
-    max-width: 320px;
-    background: #ffffff;
-    border: 1px solid #d4dde6;
-    border-radius: 8px;
-    padding: 14px;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  /* Colonne centrale large : la visualisation 3D, avec le voyant en barre dessous */
-  .panel-right {
-    flex: 1 1 auto;
-    min-width: 0;
-    background: #ffffff;
-    border: 1px solid #d4dde6;
-    border-radius: 8px;
+    width: 100%;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    font-family: "Inter", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--void);
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* Troisieme colonne a droite : les etats sauvegardes */
-  .panel-saves {
-    flex: 0 0 280px;
-    max-width: 280px;
-    background: #ffffff;
-    border: 1px solid #d4dde6;
-    border-radius: 8px;
-    padding: 14px;
-    overflow: auto;
+  /* ============ SCENE 3D : plein ecran, le heros ============ */
+  #viewer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    z-index: 0;
+    /* Lueur d'ambiance derriere le canvas, au cas ou la 3D tarde a charger */
+    background:
+      radial-gradient(120% 90% at 50% 38%, #14233c 0%, #0b1322 46%, var(--void) 100%);
+  }
+  /* Le calque CSS2D laisse passer les evenements souris vers OrbitControls.
+     (Comportement existant : ne pas modifier la semantique pointer-events.) */
+  #viewer .css2d-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+  }
+
+  /* Vignette cinematographique : centre lumineux, bords sombres. */
+  .stage-vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(125% 95% at 50% 40%, transparent 36%, rgba(5, 8, 14, 0.42) 70%, rgba(3, 5, 9, 0.85) 100%);
+  }
+
+  /* ============ HUD : surcouche flottante ============ */
+  /* Le conteneur laisse passer la souris (orbite libre) ; seuls les controles
+     reels reactivent pointer-events. */
+  .hud {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    justify-content: space-between;
+    padding: clamp(16px, 3vw, 34px);
   }
-  /* Bouton pour capturer l'etat courant */
+
+  /* ---- Briefing (haut-gauche) : la these de la page ---- */
+  .briefing {
+    max-width: 380px;
+    pointer-events: none;
+  }
+  .briefing__eyebrow {
+    margin: 0 0 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+  .briefing__title {
+    margin: 0;
+    font-family: "Chakra Petch", sans-serif;
+    font-weight: 700;
+    font-size: clamp(30px, 5vw, 52px);
+    line-height: 0.98;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    text-shadow: 0 2px 28px rgba(91, 200, 255, 0.18);
+  }
+  .briefing__tag {
+    margin: 16px 0 0;
+    font-size: clamp(14px, 1.5vw, 16px);
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--mist);
+    max-width: 22ch;
+  }
+  .briefing__tag b { color: var(--ink); font-weight: 600; }
+  .briefing__mission {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--edge);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 30ch;
+  }
+  .briefing__chip {
+    align-self: flex-start;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--void);
+    background: var(--amber);
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .briefing__chip:empty { display: none; }
+  .briefing__brief {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--mist);
+  }
+
+  /* ---- Console (bas-centre) : D-pad lumineux, l'invitation a jouer ---- */
+  .console {
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+  .console__cue {
+    margin: 0;
+    font-family: "Chakra Petch", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink);
+    text-shadow: 0 0 18px rgba(255, 210, 59, 0.35);
+  }
+
+  /* D-pad : grille 3x2 en croix. */
+  .dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-areas:
+      ".    up    ."
+      "left down right";
+    gap: 9px;
+    padding: 12px;
+    background: var(--deck);
+    border: 1px solid var(--edge-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    pointer-events: auto;
+  }
+  .dkey--up { grid-area: up; }
+  .dkey--down { grid-area: down; }
+  .dkey--left { grid-area: left; }
+  .dkey--right { grid-area: right; }
+
+  .dkey {
+    width: clamp(54px, 8vw, 66px);
+    height: clamp(54px, 8vw, 66px);
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+    background: linear-gradient(180deg, rgba(40, 56, 84, 0.9), rgba(22, 33, 52, 0.9));
+    border: 1px solid var(--edge-strong);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.18s ease,
+                border-color 0.18s ease, background 0.18s ease;
+  }
+  .dkey svg { width: 40%; height: 40%; display: block; }
+  .dkey--down svg { transform: rotate(180deg); }
+  .dkey--left svg { transform: rotate(-90deg); }
+  .dkey--right svg { transform: rotate(90deg); }
+
+  .dkey:hover {
+    color: var(--amber);
+    border-color: rgba(255, 210, 59, 0.6);
+    background: linear-gradient(180deg, rgba(58, 78, 112, 0.95), rgba(30, 44, 68, 0.95));
+    box-shadow: 0 0 22px -2px rgba(255, 210, 59, 0.45);
+    transform: translateY(-1px);
+  }
+  .dkey:active, .dkey.is-active {
+    color: var(--void);
+    background: var(--amber);
+    border-color: var(--amber);
+    box-shadow: 0 0 30px -2px rgba(255, 210, 59, 0.8);
+    transform: translateY(1px) scale(0.97);
+  }
+  .dkey:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 3px;
+  }
+
+  .restart {
+    margin-top: 2px;
+    font-family: "Inter", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    background: var(--glass);
+    border: 1px solid var(--edge-strong);
+    border-radius: 999px;
+    padding: 9px 22px;
+    cursor: pointer;
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  }
+  .restart:hover { background: rgba(91, 200, 255, 0.14); border-color: rgba(91, 200, 255, 0.5); }
+  .restart:active { background: rgba(91, 200, 255, 0.24); }
+  .restart:focus-visible { outline: 2px solid var(--cube); outline-offset: 3px; }
+  .console__hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.02em;
+  }
+
+  /* ============ VOYANT : barre de signal lumineuse, plein largeur ============ */
+  /* Seule sortie du cube physique (LED simulee). La couleur et la lueur sont
+     pilotees par src/bench/indicateur.js (jaune=code, rouge=erreur, vert=succes). */
+  #voyant {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 14px;
+    z-index: 5;
+    background: #0c1322;
+    border-top: 1px solid rgba(120, 160, 210, 0.2);
+    transition: background 0.02s linear, box-shadow 0.02s linear;
+  }
+  /* Hairline ambre persistante : le voyant reste "vivant" meme eteint.
+     (Pilotee en CSS, hors de portee du JS qui ne touche que #voyant.) */
+  #voyant::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: -1px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255, 210, 59, 0.65), transparent);
+    box-shadow: 0 0 16px rgba(255, 210, 59, 0.35);
+    pointer-events: none;
+  }
+
+  /* ============ BANC D'ESSAI : tiroir verre (outil dev) ============ */
+  .bench-toggle {
+    position: fixed;
+    top: clamp(16px, 3vw, 34px);
+    right: clamp(16px, 3vw, 34px);
+    z-index: 31;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mist);
+    background: var(--deck);
+    border: 1px solid var(--edge-strong);
+    border-radius: 999px;
+    padding: 9px 16px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: color 0.16s ease, border-color 0.16s ease;
+  }
+  .bench-toggle:hover { color: var(--ink); border-color: var(--edge-strong); }
+  .bench-toggle:focus-visible { outline: 2px solid var(--cube); outline-offset: 3px; }
+  .bench-toggle .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--cube);
+    box-shadow: 0 0 8px var(--cube);
+    vertical-align: middle;
+  }
+
+  .bench {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(360px, 90vw);
+    z-index: 30;
+    background: var(--deck-solid);
+    border-left: 1px solid var(--edge-strong);
+    box-shadow: -24px 0 60px -30px rgba(0, 0, 0, 0.9);
+    padding: 22px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    transform: translateX(102%);
+    transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .bench.is-open { transform: translateX(0); }
+
+  .bench__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .bench__name {
+    margin: 0;
+    font-family: "Chakra Petch", sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+  }
+  .bench__close {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--mist);
+    background: transparent;
+    border: 1px solid var(--edge);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: color 0.16s ease, border-color 0.16s ease;
+  }
+  .bench__close:hover { color: var(--ink); border-color: var(--edge-strong); }
+  .bench__close:focus-visible { outline: 2px solid var(--cube); outline-offset: 2px; }
+
+  .bench__block { display: flex; flex-direction: column; gap: 12px; }
+  .bench__title {
+    margin: 0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* Matrice 8x3 : donnees en mono, lignes alternees discretes. */
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+  }
+  table.matrix thead th {
+    color: var(--mist);
+    padding: 7px 8px;
+    text-align: center;
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--edge-strong);
+  }
+  table.matrix tbody td {
+    padding: 6px 8px;
+    text-align: center;
+    color: var(--ink);
+    border-bottom: 1px solid rgba(120, 160, 210, 0.08);
+    font-variant-numeric: tabular-nums;
+  }
+  table.matrix tbody td.vertex-name {
+    font-weight: 700;
+    color: var(--cube);
+  }
+  table.matrix tbody tr:nth-child(even) td {
+    background: rgba(120, 160, 210, 0.04);
+  }
+
+  /* Bouton enregistrer une pose */
   .save-btn {
     width: 100%;
-    padding: 10px 0;
+    padding: 11px 0;
+    font-family: "Inter", sans-serif;
     font-size: 13px;
     font-weight: 600;
-    color: #ffffff;
-    background: #1f7a4d;
+    color: var(--void);
+    background: var(--green);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: filter 0.15s ease;
   }
-  .save-btn:hover { background: #176039; }
-  .save-btn:active { background: #114d2d; }
+  .save-btn:hover { filter: brightness(1.08); }
+  .save-btn:active { filter: brightness(0.92); }
+  .save-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 
-  /* Liste des sauvegardes */
+  .hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--faint);
+    line-height: 1.5;
+  }
+
   .saves-list {
     list-style: none;
     margin: 0;
@@ -122,308 +465,240 @@
   }
   .saves-empty {
     font-size: 12px;
-    color: #8a98a6;
+    color: var(--faint);
     font-style: italic;
   }
-  .save-item {
-    display: flex;
-    align-items: stretch;
-    gap: 6px;
-  }
-  /* Nom de la sauvegarde (cliquable pour recharger l'etat) */
+  .save-item { display: flex; gap: 6px; }
   .save-name {
     flex: 1 1 auto;
     min-width: 0;
     text-align: left;
-    padding: 7px 9px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #1f3a5f;
-    background: #f3f7fb;
-    border: 1px solid #d4dde6;
-    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--glass);
+    border: 1px solid var(--edge);
+    border-radius: var(--r-sm);
     cursor: pointer;
     word-break: break-word;
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
-  .save-name:hover { background: #e6eef7; }
-  .save-name:active { background: #d8e4f1; }
-  /* Croix de suppression */
+  .save-name:hover { background: rgba(91, 200, 255, 0.1); border-color: rgba(91, 200, 255, 0.4); }
+  .save-name:focus-visible { outline: 2px solid var(--cube); outline-offset: 2px; }
   .save-del {
     flex: 0 0 auto;
-    width: 30px;
-    font-size: 14px;
+    width: 34px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
     font-weight: 700;
-    color: #ffffff;
-    background: #b6485c;
-    border: none;
-    border-radius: 6px;
+    color: var(--red);
+    background: rgba(255, 77, 77, 0.1);
+    border: 1px solid rgba(255, 77, 77, 0.3);
+    border-radius: var(--r-sm);
     cursor: pointer;
     transition: background 0.15s ease;
   }
-  .save-del:hover { background: #983949; }
-  .save-del:active { background: #7c2f3c; }
+  .save-del:hover { background: rgba(255, 77, 77, 0.22); }
+  .save-del:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
-  h2.section-title {
-    margin: 0 0 8px;
-    font-size: 16px;
-    color: #1f3a5f;
-    border-bottom: 2px solid #1f3a5f;
-    padding-bottom: 4px;
-  }
-
-  /* Style de la table de la matrice 8x3 */
-  table.matrix {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  table.matrix thead th {
-    background: #1f3a5f;
-    color: #ffffff;
-    padding: 6px 8px;
-    text-align: center;
-    font-weight: 600;
-  }
-  table.matrix tbody td {
-    padding: 5px 8px;
-    text-align: center;
-    border-bottom: 1px solid #e2e8ee;
-    font-variant-numeric: tabular-nums;
-  }
-  table.matrix tbody td.vertex-name {
-    font-weight: 700;
-    color: #1f3a5f;
-    background: #f3f7fb;
-  }
-  /* Lignes alternees pour la lisibilite */
-  table.matrix tbody tr:nth-child(even) td {
-    background: #f7fafc;
-  }
-  table.matrix tbody tr:nth-child(even) td.vertex-name {
-    background: #e8f0f8;
-  }
-
-  /* Bloc des boutons directionnels disposes en croix */
-  .controls {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    margin-top: 4px;
-  }
-  .controls .row {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-  }
-  .controls button {
-    width: 78px;
-    padding: 9px 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: #ffffff;
-    background: #2f5d8a;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .controls button:hover { background: #244a70; }
-  .controls button:active { background: #1c3a59; }
-  .controls button:disabled {
-    background: #aab7c4;
-    cursor: not-allowed;
-  }
-  /* Les commandes directionnelles affichent une grande fleche (geste physique) */
-  #btn-up, #btn-down, #btn-left, #btn-right {
-    font-size: 20px;
-    line-height: 1;
-    padding: 7px 0;
-  }
-  /* Bouton de reinitialisation : largeur double et couleur distincte */
-  .controls button.reset {
-    width: 162px;
-    background: #5a6b7b;
-    margin-top: 2px;
-  }
-  .controls button.reset:hover { background: #46535f; }
-  .controls button.reset:active { background: #364049; }
-  .controls .spacer { width: 78px; }
-
-  .hint {
-    font-size: 12px;
-    color: #5a6b7b;
-    line-height: 1.4;
-  }
-
-  /* Conteneur de rendu : le canvas WebGL et le CSS2DRenderer s'y superposent.
-     Flexible en hauteur ; la barre voyant occupe le bas de la colonne. */
-  #viewer {
-    position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-    overflow: hidden;
-  }
-  /* Voyant : barre pleine largeur de 2em, toute la surface s'allume. */
-  #voyant {
-    flex: 0 0 2em;
-    height: 2em;
-    width: 100%;
-    background: #15202b;
-    border-top: 1px solid #0d141c;
-    transition: background 0.02s linear, box-shadow 0.02s linear;
-  }
-  /* Le calque CSS2D doit laisser passer les evenements souris vers OrbitControls */
-  #viewer .css2d-layer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    pointer-events: none;
-  }
-
-  /* Style des labels HTML des sommets (CSS2DObject) */
+  /* ============ Elements 3D pilotes par la vue (CSS2D) ============ */
   .vertex-label {
-    background: rgba(31, 58, 95, 0.9);
-    color: #ffffff;
-    border: 1px solid #ffffff;
-    border-radius: 4px;
+    background: rgba(12, 20, 34, 0.82);
+    color: var(--cube);
+    border: 1px solid rgba(91, 200, 255, 0.45);
+    border-radius: 5px;
     padding: 1px 6px;
-    font-size: 13px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
     font-weight: 700;
     pointer-events: none;
     user-select: none;
+    box-shadow: 0 0 12px -3px rgba(91, 200, 255, 0.6);
   }
-
-  /* Petites graduations numeriques le long des axes X et Y (sur le sol) */
   .axis-tick {
+    font-family: "JetBrains Mono", monospace;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 500;
     pointer-events: none;
     user-select: none;
-    /* Halo blanc pour rester lisible au dessus de la grille */
-    text-shadow: 0 0 2px #ffffff, 0 0 2px #ffffff, 0 0 2px #ffffff;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.9);
   }
-  /* Une couleur par axe (memes teintes que les axes de reference) */
-  .axis-tick-x { color: #d23b3b; } /* abscisse X : rouge */
-  .axis-tick-y { color: #1f9e4d; } /* ordonnee Y : vert */
-  .axis-tick-o { color: #5a6b7b; } /* origine : gris neutre */
+  .axis-tick-x { color: #ff6b6b; } /* abscisse X : rouge */
+  .axis-tick-y { color: #45e08a; } /* ordonnee Y : vert */
+  .axis-tick-o { color: #7a8ca6; } /* origine : gris neutre */
 
-  /* Message d'erreur affiche dans la zone de visualisation */
+  /* Message d'erreur (WebGL indisponible / CDN injoignable) */
   .error-box {
     position: absolute;
     inset: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 8px;
     padding: 24px;
     text-align: center;
-    color: #8a1f1f;
-    background: #fff4f4;
+    color: #ffd0d0;
+    background: rgba(20, 8, 10, 0.92);
     font-size: 15px;
-    line-height: 1.5;
+    line-height: 1.55;
+    z-index: 40;
   }
 
-  /* Mise en page responsive : colonnes empilees sur petit ecran */
-  @media (max-width: 760px) {
-    .layout {
-      flex-direction: column;
-      height: auto;
+  /* ============ Revelation au chargement (motion orchestree) ============ */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(14px); animation: reveal-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .reveal--1 { animation-delay: 0.15s; }
+    .reveal--3 { animation-delay: 0.55s; transform: translateY(24px); }
+    @keyframes reveal-up {
+      to { opacity: 1; transform: translateY(0); }
     }
-    .panel-left {
-      flex: 0 0 auto;
-      max-width: none;
+    #voyant { animation: voyant-wake 1.1s ease 0.9s both; }
+    @keyframes voyant-wake {
+      0%   { box-shadow: none; }
+      40%  { box-shadow: inset 0 0 26px rgba(255, 210, 59, 0.7), 0 0 18px rgba(255, 210, 59, 0.55); }
+      100% { box-shadow: none; }
     }
-    .panel-saves {
-      flex: 0 0 auto;
-      max-width: none;
-    }
-    .panel-right {
-      height: 420px;
-    }
+  }
+
+  /* ============ Responsive : tablette / mobile ============ */
+  @media (max-width: 720px) {
+    .hud { padding: 16px; }
+    .briefing { max-width: 64vw; }
+    .briefing__mission { display: none; } /* mission lisible une fois le jeu lance */
+    .console { gap: 9px; }
+    .bench { width: 100vw; border-left: none; }
+  }
+  @media (max-width: 420px) {
+    .briefing__tag { display: none; }
   }
 </style>
 </head>
 <body>
 
-<header class="page-title">
-  <!-- Le suffixe de titre et l'explication sont fournis par le module de defi
-       actif (voir src/challenges/defi1.js), injectes par src/bench/main.js. -->
-  <h1>Cube MultiDefis - <span id="defi-titre"></span></h1>
-  <p id="defi-explication"></p>
-</header>
+<!-- ============ SCENE 3D : le heros, plein ecran ============ -->
+<!-- Le canvas WebGL et le calque CSS2D des labels sont injectes ici par la vue. -->
+<main id="viewer" aria-label="Scene 3D du cube qui roule"></main>
+<div class="stage-vignette" aria-hidden="true"></div>
 
-<div class="layout">
+<!-- ============ HUD : surcouche flottante (n'intercepte pas l'orbite) ============ -->
+<div class="hud">
 
-  <!-- ============ COLONNE GAUCHE : MATRICE 8x3 ============ -->
-  <section class="panel-left">
-    <div>
-      <h2 class="section-title">Matrice des Sommets</h2>
-      <table class="matrix">
-        <thead>
-          <tr>
-            <th>Sommet</th>
-            <th>X</th>
-            <th>Y</th>
-            <th>Z</th>
-          </tr>
-        </thead>
-        <tbody id="matrix-body">
-          <!-- Les lignes sont generees par src/bench/matrice.js : chaque cellule
-               possede un id stable (cell-A-x, ...). -->
-        </tbody>
-      </table>
-    </div>
-
-    <div>
-      <h2 class="section-title">Commandes</h2>
-      <!-- Boutons directionnels disposes en croix -->
-      <div class="controls">
-        <div class="row">
-          <div class="spacer"></div>
-          <button id="btn-up" type="button" title="Basculer vers le haut (+Y)" aria-label="Basculer vers le haut">&#8593;</button>
-          <div class="spacer"></div>
-        </div>
-        <div class="row">
-          <button id="btn-left" type="button" title="Basculer vers la gauche (-X)" aria-label="Basculer vers la gauche">&#8592;</button>
-          <button id="btn-down" type="button" title="Basculer vers le bas (-Y)" aria-label="Basculer vers le bas">&#8595;</button>
-          <button id="btn-right" type="button" title="Basculer vers la droite (+X)" aria-label="Basculer vers la droite">&#8594;</button>
-        </div>
-        <div class="row">
-          <button id="btn-reset" type="button" class="reset">Reinitialiser</button>
-        </div>
-      </div>
+  <!-- Briefing : la these de la page (haut-gauche) -->
+  <section class="briefing reveal reveal--1">
+    <p class="briefing__eyebrow">Jumeau numerique</p>
+    <h1 class="briefing__title">Le cube de la<br />salle sombre</h1>
+    <p class="briefing__tag"><b>Roule le cube. Lis la lumiere. Trouve le code.</b></p>
+    <!-- Titre et mission du defi actif, injectes par src/bench/main.js. -->
+    <div class="briefing__mission">
+      <span class="briefing__chip" id="defi-titre"></span>
+      <span class="briefing__brief" id="defi-explication"></span>
     </div>
   </section>
 
-  <!-- ============ COLONNE CENTRALE : SCENE 3D + VOYANT ============ -->
-  <section class="panel-right">
-    <div id="viewer"><!-- Le canvas WebGL et le calque CSS2D seront injectes ici --></div>
-    <!-- Voyant lumineux : seule sortie du cube physique (LED simulee). Toute la
-         barre est le voyant : code de direction (jaune), erreur (rouge),
-         succes (vert accelere). -->
-    <div id="voyant" class="voyant" title="Voyant du cube"></div>
-  </section>
-
-  <!-- ============ COLONNE DROITE : ETATS SAUVEGARDES ============ -->
-  <section class="panel-saves">
-    <h2 class="section-title">Etats sauvegardes</h2>
-    <button id="btn-save" type="button" class="save-btn">Sauvegarder l'etat actuel</button>
-    <p class="hint">
-      Outil de banc : chaque sauvegarde est nommee par la sequence de mouvements
-      qui y mene (H = Haut, B = Bas, G = Gauche, D = Droite). Cliquez le nom pour
-      recharger la pose ; la croix la supprime.
-    </p>
-    <ul id="saves-list" class="saves-list">
-      <li class="saves-empty" id="saves-empty">Aucune sauvegarde pour le moment.</li>
-    </ul>
+  <!-- Console : D-pad lumineux + recommencer (bas-centre) -->
+  <section class="console reveal reveal--3">
+    <p class="console__cue">Fais rouler le cube</p>
+    <div class="dpad">
+      <button id="btn-up" class="dkey dkey--up" type="button" title="Basculer vers le haut (+Y)" aria-label="Basculer vers le haut">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15 L12 8 L19 15" /></svg>
+      </button>
+      <button id="btn-left" class="dkey dkey--left" type="button" title="Basculer vers la gauche (-X)" aria-label="Basculer vers la gauche">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15 L12 8 L19 15" /></svg>
+      </button>
+      <button id="btn-down" class="dkey dkey--down" type="button" title="Basculer vers le bas (-Y)" aria-label="Basculer vers le bas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15 L12 8 L19 15" /></svg>
+      </button>
+      <button id="btn-right" class="dkey dkey--right" type="button" title="Basculer vers la droite (+X)" aria-label="Basculer vers la droite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15 L12 8 L19 15" /></svg>
+      </button>
+    </div>
+    <button id="btn-reset" class="restart" type="button">Recommencer</button>
+    <p class="console__hint">ou les fleches du clavier</p>
   </section>
 
 </div>
 
+<!-- ============ VOYANT : barre de signal lumineuse, plein largeur ============ -->
+<div id="voyant" class="voyant" aria-label="Voyant lumineux du cube"></div>
+
+<!-- ============ BANC D'ESSAI : tiroir des outils dev (matrice + poses) ============ -->
+<button class="bench-toggle" id="bench-toggle" type="button" aria-controls="bench" aria-expanded="false">
+  <span class="dot" aria-hidden="true"></span>Banc
+</button>
+
+<aside class="bench" id="bench" aria-hidden="true">
+  <div class="bench__head">
+    <h2 class="bench__name">Banc d'essai</h2>
+    <button class="bench__close" id="bench-close" type="button" aria-label="Fermer le banc">Fermer</button>
+  </div>
+
+  <section class="bench__block">
+    <h3 class="bench__title">Sommets en coordonnees monde</h3>
+    <table class="matrix">
+      <thead>
+        <tr><th>Sommet</th><th>X</th><th>Y</th><th>Z</th></tr>
+      </thead>
+      <tbody id="matrix-body">
+        <!-- Lignes generees par src/bench/matrice.js (ids stables cell-A-x, ...). -->
+      </tbody>
+    </table>
+  </section>
+
+  <section class="bench__block">
+    <h3 class="bench__title">Poses enregistrees</h3>
+    <button id="btn-save" type="button" class="save-btn">Enregistrer la pose actuelle</button>
+    <p class="hint">
+      Chaque pose est nommee par sa sequence de coups (H = Haut, B = Bas,
+      G = Gauche, D = Droite). Clique le nom pour recharger, la croix l'efface.
+    </p>
+    <ul id="saves-list" class="saves-list">
+      <li class="saves-empty" id="saves-empty">Aucune pose enregistree.</li>
+    </ul>
+  </section>
+</aside>
+
 <!-- Montage de l'application (coeur produit + moteur de defis + banc) -->
 <script type="module" src="src/bench/main.js"></script>
+
+<!-- Banc : ouverture/fermeture du tiroir + retour lumineux des touches clavier.
+     Pur habillage, independant du coeur et du montage. -->
+<script>
+  (function () {
+    var bench = document.getElementById("bench");
+    var toggle = document.getElementById("bench-toggle");
+    var close = document.getElementById("bench-close");
+
+    function setOpen(open) {
+      bench.classList.toggle("is-open", open);
+      bench.setAttribute("aria-hidden", open ? "false" : "true");
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    toggle.addEventListener("click", function () {
+      setOpen(!bench.classList.contains("is-open"));
+    });
+    close.addEventListener("click", function () { setOpen(false); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && bench.classList.contains("is-open")) setOpen(false);
+    });
+
+    // Retour visuel : une fleche du clavier illumine brievement la touche du D-pad.
+    var KEY_TO_BTN = {
+      ArrowUp: "btn-up", ArrowDown: "btn-down",
+      ArrowLeft: "btn-left", ArrowRight: "btn-right",
+    };
+    document.addEventListener("keydown", function (e) {
+      var id = KEY_TO_BTN[e.key];
+      if (!id) return;
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.classList.add("is-active");
+      setTimeout(function () { btn.classList.remove("is-active"); }, 180);
+    });
+  })();
+</script>
 
 </body>
 </html>

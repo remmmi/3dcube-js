@@ -23,7 +23,9 @@ const ROULEMENT_VUE = {
 // onFrame(temps) est appele a chaque frame (pour cadencer le defi via tick).
 export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, conteneur, onFrame }) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf3f7fb);
+  // Salle sombre : fond bleu nuit et brume pour fondre le sol dans le noir.
+  scene.background = new THREE.Color(0x0a0f1a);
+  scene.fog = new THREE.Fog(0x0a0f1a, 7, 17);
 
   const camera = new THREE.PerspectiveCamera(45, conteneur.clientWidth / conteneur.clientHeight, 0.1, 100);
   // Axe Z vertical : le "haut" de la camera est +Z.
@@ -49,14 +51,19 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
   controls.target.set(0.5, 0.5, 0.5);
   controls.update();
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  // Eclairage de scene sombre : ambiance basse, une cle blanche, un remplissage
+  // froid cyan pour sculpter le cube de cristal.
+  const ambient = new THREE.AmbientLight(0xffffff, 0.45);
   scene.add(ambient);
-  const directional = new THREE.DirectionalLight(0xffffff, 0.8);
+  const directional = new THREE.DirectionalLight(0xffffff, 0.95);
   directional.position.set(4, -3, 6);
   scene.add(directional);
+  const fill = new THREE.DirectionalLight(0x5bc8ff, 0.45);
+  fill.position.set(-5, 4, 3);
+  scene.add(fill);
 
-  // Sol : grille horizontale (le GridHelper par defaut est dans XZ, on le tourne).
-  const grid = new THREE.GridHelper(10, 10, 0x9fb4c8, 0xcdd9e4);
+  // Sol : grille holographique (lignes bleutees qui se perdent dans la brume).
+  const grid = new THREE.GridHelper(10, 10, 0x3a72ad, 0x18283f);
   grid.rotation.x = Math.PI / 2;
   scene.add(grid);
 
@@ -79,9 +86,9 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
     scene.add(new THREE.Line(geo, mat));
   }
   const zLift = 0.002; // evite le z-fighting avec la grille
-  makeAxisLine(new THREE.Vector3(-GRID_HALF, 0, zLift), new THREE.Vector3(GRID_HALF, 0, zLift), 0xd23b3b);
-  makeAxisLine(new THREE.Vector3(0, -GRID_HALF, zLift), new THREE.Vector3(0, GRID_HALF, zLift), 0x1f9e4d);
-  makeAxisLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 2), 0x3b6fd2);
+  makeAxisLine(new THREE.Vector3(-GRID_HALF, 0, zLift), new THREE.Vector3(GRID_HALF, 0, zLift), 0xff5a5a);
+  makeAxisLine(new THREE.Vector3(0, -GRID_HALF, zLift), new THREE.Vector3(0, GRID_HALF, zLift), 0x36d07a);
+  makeAxisLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 2), 0x5b9bff);
   for (let i = -GRID_HALF; i <= GRID_HALF; i++) {
     if (i === 0) continue;
     makeAxisTick(String(i), i, -TICK_GAP, "x");
@@ -95,13 +102,17 @@ export function creerVue3D({ THREE, OrbitControls, CSS2DRenderer, CSS2DObject, c
 
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   boxGeo.translate(0.5, 0.5, 0.5);
+  // Cube de cristal : verre bleu translucide, legere lueur interne.
   const boxMat = new THREE.MeshStandardMaterial({
-    color: 0x4a90d9, transparent: true, opacity: 0.55, metalness: 0.05, roughness: 0.6,
+    color: 0x4aa3e0, transparent: true, opacity: 0.42,
+    metalness: 0.1, roughness: 0.32,
+    emissive: 0x103a5c, emissiveIntensity: 0.7,
   });
   cubeGroup.add(new THREE.Mesh(boxGeo, boxMat));
 
+  // Arretes lumineuses cyan : le cube lit comme un fil de neon.
   const edges = new THREE.EdgesGeometry(boxGeo);
-  const edgeMat = new THREE.LineBasicMaterial({ color: 0x14304d });
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x7fe3ff });
   cubeGroup.add(new THREE.LineSegments(edges, edgeMat));
 
   // Noeuds des sommets + labels CSS2D, enfants du cubeGroup (ils suivent le cube).

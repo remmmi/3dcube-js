@@ -12,12 +12,12 @@ export function creerIndicateur(element) {
     if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
   }
   function peindre(on, couleur) {
-    element.style.background = on ? couleur : "#15202b";
+    element.style.background = on ? couleur : "#0c1322";
     element.style.boxShadow = on ? "inset 0 0 28px " + couleur + ", 0 0 16px " + couleur : "none";
   }
   function eteindre() {
     arreter();
-    peindre(false, "#15202b");
+    peindre(false, "#0c1322");
   }
 
   // n impulsions de couleur, periode periodeMs (demi-periode allumee / eteinte).
