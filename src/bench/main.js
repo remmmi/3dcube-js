@@ -130,6 +130,7 @@ async function demarrer() {
 
   // ---- Bascule de theme : "sombre" (salle sombre) <-> "psyche" (70s clair) ----
   // Applique la classe CSS (decor, HUD) et le theme 3D (fond, arretes, grille).
+  // Pas de bouton visible : bascule au clavier (Shift+P), choix memorise.
   function appliquerThemePage(nom) {
     document.body.classList.toggle("theme-psyche", nom === "psyche");
     vue.appliquerTheme(nom);
@@ -138,13 +139,14 @@ async function demarrer() {
   let themeActuel = "sombre";
   try { themeActuel = localStorage.getItem("theme") || "sombre"; } catch (e) { /* idem */ }
   appliquerThemePage(themeActuel);
-  const themeBtn = document.getElementById("theme-toggle");
-  if (themeBtn) {
-    themeBtn.addEventListener("click", () => {
-      themeActuel = (themeActuel === "psyche") ? "sombre" : "psyche";
-      appliquerThemePage(themeActuel);
-    });
-  }
+  window.addEventListener("keydown", (event) => {
+    if (!event.shiftKey || (event.key !== "P" && event.key !== "p")) return;
+    const champ = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName || "");
+    if (champ) return; // ne pas intercepter la saisie dans un champ
+    themeActuel = (themeActuel === "psyche") ? "sombre" : "psyche";
+    appliquerThemePage(themeActuel);
+    event.preventDefault();
+  });
 
   // Remplit le bandeau avec le titre et l'explication du module de defi actif.
   function majBandeau() {
