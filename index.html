@@ -642,14 +642,12 @@
   body.theme-psyche .psyche-bg { display: block; }
   .psyche-svg { width: 100%; height: 100%; display: block; }
 
-  /* Motion douce facon lava-lamp : le soleil tourne lentement, les marguerites
-     se balancent. Coupe si l'utilisateur prefere moins de mouvement. */
-  @media (prefers-reduced-motion: no-preference) {
-    .psyche-svg .sun { transform-box: fill-box; transform-origin: center; animation: sun-rot 120s linear infinite; }
-    .psyche-svg .daisy { transform-box: fill-box; transform-origin: center; animation: daisy-sway 7s ease-in-out infinite alternate; }
-    .psyche-svg .daisy:nth-of-type(2n) { animation-duration: 9.5s; animation-direction: alternate-reverse; }
-    .psyche-svg .daisy:nth-of-type(3n) { animation-duration: 12s; }
-  }
+  /* Motion douce facon lava-lamp : le soleil tourne, les marguerites se
+     balancent. Chaque marguerite est un <g> (anim fiable sur mobile, contrai-
+     rement a une transform animee sur <use>) ; la variete vient d'un style
+     inline par fleur. */
+  .psyche-svg .sun { transform-box: fill-box; transform-origin: center; animation: sun-rot 120s linear infinite; }
+  .psyche-svg .daisy { transform-box: fill-box; transform-origin: center; animation: daisy-sway 8s ease-in-out infinite alternate; }
   @keyframes sun-rot { to { transform: rotate(360deg); } }
   @keyframes daisy-sway {
     from { transform: rotate(-8deg) scale(0.97); }
@@ -819,13 +817,13 @@
     </g>
 
     <!-- Marguerites : champ + ciel, balancement doux -->
-    <use class="daisy" href="#daisy" x="225" y="615" width="120" height="120"/>
-    <use class="daisy" href="#daisy" x="1190" y="640" width="150" height="150"/>
-    <use class="daisy" href="#daisy" x="610" y="690" width="100" height="100"/>
-    <use class="daisy" href="#daisy" x="950" y="700" width="130" height="130"/>
-    <use class="daisy" href="#daisy" x="140" y="210" width="92"  height="92"/>
-    <use class="daisy" href="#daisy" x="1330" y="180" width="104" height="104"/>
-    <use class="daisy" href="#daisy" x="430" y="120" width="78"  height="78"/>
+    <g class="daisy" style="animation-duration: 7s"><use href="#daisy" x="225" y="615" width="120" height="120"/></g>
+    <g class="daisy" style="animation-duration: 9.5s; animation-direction: alternate-reverse"><use href="#daisy" x="1190" y="640" width="150" height="150"/></g>
+    <g class="daisy" style="animation-duration: 11s; animation-delay: -2s"><use href="#daisy" x="610" y="690" width="100" height="100"/></g>
+    <g class="daisy" style="animation-duration: 8.5s; animation-direction: alternate-reverse"><use href="#daisy" x="950" y="700" width="130" height="130"/></g>
+    <g class="daisy" style="animation-duration: 10s; animation-delay: -1.5s"><use href="#daisy" x="140" y="210" width="92" height="92"/></g>
+    <g class="daisy" style="animation-duration: 7.5s; animation-direction: alternate-reverse"><use href="#daisy" x="1330" y="180" width="104" height="104"/></g>
+    <g class="daisy" style="animation-duration: 12s; animation-delay: -3s"><use href="#daisy" x="430" y="120" width="78" height="78"/></g>
   </svg>
 </div>
 

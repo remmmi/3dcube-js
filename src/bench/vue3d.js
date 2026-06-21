@@ -188,6 +188,20 @@ export function creerVue3D({
   const arretesMesh = new THREE.LineSegments(edges, edgeMat);
   cubeGroup.add(arretesMesh); // masque en psyche (le cube garde juste l'arrondi)
 
+  // Lumiere spherique interne (theme psyche) : un orbe + une point light dont la
+  // teinte tourne cycliquement, vus a travers le cube blanc translucide.
+  const orbe = new THREE.Mesh(
+    new THREE.SphereGeometry(0.26, 24, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  orbe.position.set(0.5, 0.5, 0.5);
+  orbe.visible = false;
+  cubeGroup.add(orbe);
+  const orbeLight = new THREE.PointLight(0xffffff, 0, 4);
+  orbeLight.position.set(0.5, 0.5, 0.5);
+  cubeGroup.add(orbeLight);
+  const _orbeColor = new THREE.Color();
+
   // Halo organique : nappe de lumiere additive posee au sol, qui suit le cube.
   // Texture radiale generee a la volee (degrade cyan vers transparent).
   function textureHalo() {
@@ -217,6 +231,7 @@ export function creerVue3D({
   // Noeuds des sommets + labels CSS2D, enfants du cubeGroup (ils suivent le cube).
   const CENTER = new THREE.Vector3(0.5, 0.5, 0.5);
   const vertexNodes = {};
+  const vertexLabels = []; // labels A..H, masques en psyche
   for (const name of VERTEX_NAMES) {
     const [x, y, z] = VERTEX_LOCAL[name];
     const node = new THREE.Object3D();
@@ -231,6 +246,7 @@ export function creerVue3D({
     const label = new CSS2DObject(div);
     label.position.copy(dir.multiplyScalar(0.25));
     node.add(label);
+    vertexLabels.push(label);
   }
 
   let isRolling = false;
@@ -419,6 +435,13 @@ export function creerVue3D({
     halo.position.x = haloTmp.x;
     halo.position.y = haloTmp.y;
     if (onFrame) onFrame(performance.now());
+    // Orbe interne (psyche) : teinte qui tourne cycliquement (~18 s par tour).
+    if (themePsyche) {
+      const h = (performance.now() * 0.000055) % 1;
+      _orbeColor.setHSL(h, 0.85, 0.6);
+      orbe.material.color.copy(_orbeColor);
+      orbeLight.color.copy(_orbeColor);
+    }
     // Psyche : rendu direct (canvas transparent, decor CSS visible). Sinon bloom.
     if (themePsyche) renderer.render(scene, camera);
     else composer.render();
@@ -487,8 +510,8 @@ export function creerVue3D({
   const THEMES = {
     // sombre : la salle sombre (cube cristal bleu translucide, arretes cyan, maths visibles).
     sombre: { fond: 0x0a0f1a, fog: [0x0a0f1a, 7, 17], arrete: 0x7fe3ff, grille: [0x3a72ad, 0x18283f], ambient: 0.45, cubeOpacity: 0.42, cubeColor: 0x4aa3e0, cubeEmissive: 0x103a5c, math: true,  arretes: true },
-    // psyche : poster 70s organique (cube marigold opaque arrondi, sans arretes, maths masquees).
-    psyche: { fond: null,     fog: null,               arrete: 0x3a2233, grille: [0xcf8f6a, 0xe8c79a], ambient: 1.1,  cubeOpacity: 1,    cubeColor: 0xf2a93b, cubeEmissive: 0x3a1e00, math: false, arretes: false },
+    // psyche : poster 70s organique (cube blanc translucide arrondi, orbe cyclique interne, sans arretes ni labels).
+    psyche: { fond: null,     fog: null,               arrete: 0x3a2233, grille: [0xcf8f6a, 0xe8c79a], ambient: 1.1,  cubeOpacity: 0.6,  cubeColor: 0xffffff, cubeEmissive: 0x000000, math: false, arretes: false },
   };
   function appliquerTheme(nom) {
     const t = THEMES[nom] || THEMES.sombre;
@@ -513,6 +536,11 @@ export function creerVue3D({
     for (const o of mathHelpers) o.visible = t.math;
     // Arretes : tracees en sombre (fil de neon / indicateur), masquees en psyche.
     arretesMesh.visible = t.arretes;
+    // Labels de sommets : visibles en sombre, retires en psyche.
+    for (const l of vertexLabels) l.visible = !themePsyche;
+    // Orbe lumineux interne : actif en psyche seulement.
+    orbe.visible = themePsyche;
+    orbeLight.intensity = themePsyche ? 1.4 : 0;
   }
 
   return {
