@@ -188,19 +188,41 @@ export function creerVue3D({
   const arretesMesh = new THREE.LineSegments(edges, edgeMat);
   cubeGroup.add(arretesMesh); // masque en psyche (le cube garde juste l'arrondi)
 
-  // Lumiere spherique interne (theme psyche) : un orbe + une point light dont la
-  // teinte tourne cycliquement, vus a travers le cube blanc translucide.
-  const orbe = new THREE.Mesh(
-    new THREE.SphereGeometry(0.26, 24, 16),
-    new THREE.MeshBasicMaterial({ color: 0xffffff })
-  );
-  orbe.position.set(0.5, 0.5, 0.5);
-  orbe.visible = false;
-  cubeGroup.add(orbe);
-  const orbeLight = new THREE.PointLight(0xffffff, 0, 4);
-  orbeLight.position.set(0.5, 0.5, 0.5);
-  cubeGroup.add(orbeLight);
-  const _orbeColor = new THREE.Color();
+  // Lampe interne (theme psyche) : le cube EMET une lumiere dont la teinte tourne
+  // cycliquement. Une point light + un halo additif donnent l'impression que la
+  // lumiere emane du cube (il n'y a pas de bloom en psyche). Les flashs du defi
+  // sont joues comme un gonflement lisse de cette lampe (cf. peindreSignal/animate).
+  function texRadialeBlanche() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d");
+    const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grd.addColorStop(0, "rgba(255,255,255,1)");
+    grd.addColorStop(0.45, "rgba(255,255,255,0.45)");
+    grd.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+  const lampeLight = new THREE.PointLight(0xffffff, 0, 5);
+  lampeLight.position.set(0.5, 0.5, 0.5);
+  cubeGroup.add(lampeLight);
+  const halo3d = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texRadialeBlanche(), color: 0xffffff, transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0,
+  }));
+  halo3d.scale.set(2.7, 2.7, 1);
+  halo3d.position.set(0.5, 0.5, 0.5);
+  halo3d.visible = false;
+  cubeGroup.add(halo3d);
+  // Couleur de la lampe (repos cyclique) + etat de flash lisse.
+  const _lampColor = new THREE.Color();
+  const _flashColor = new THREE.Color();
+  const _flashTmp = new THREE.Color();
+  const _warmCream = new THREE.Color(0xfff0d8);
+  let flashCible = null;        // couleur de flash adoucie, ou null
+  let flashNiveau = 0;          // 0..1 niveau lisse courant
+  let flashNiveauCible = 0;     // 0 ou 1 (pilote par l'indicateur)
 
   // Halo organique : nappe de lumiere additive posee au sol, qui suit le cube.
   // Texture radiale generee a la volee (degrade cyan vers transparent).
@@ -435,12 +457,23 @@ export function creerVue3D({
     halo.position.x = haloTmp.x;
     halo.position.y = haloTmp.y;
     if (onFrame) onFrame(performance.now());
-    // Orbe interne (psyche) : teinte qui tourne cycliquement (~18 s par tour).
+    // Lampe interne (psyche) : teinte de repos qui tourne (~18 s), gonflee vers
+    // la couleur de flash de maniere lisse (attaque vive, relache douce) pour un
+    // rendu organique. Le cube EMET (emissif) + halo + point light => la lumiere
+    // semble emaner du cube.
     if (themePsyche) {
       const h = (performance.now() * 0.000055) % 1;
-      _orbeColor.setHSL(h, 0.85, 0.6);
-      orbe.material.color.copy(_orbeColor);
-      orbeLight.color.copy(_orbeColor);
+      _lampColor.setHSL(h, 0.68, 0.6); // un peu moins sature = moins criard
+      const k = flashNiveauCible > flashNiveau ? 0.16 : 0.05; // monte vite, retombe doux
+      flashNiveau += (flashNiveauCible - flashNiveau) * k;
+      _flashColor.copy(_lampColor);
+      if (flashCible) _flashColor.lerp(flashCible, flashNiveau);
+      boxMat.emissive.copy(_flashColor);
+      boxMat.emissiveIntensity = 0.5 + 0.7 * flashNiveau;
+      lampeLight.color.copy(_flashColor);
+      lampeLight.intensity = 1.1 + 1.6 * flashNiveau;
+      halo3d.material.color.copy(_flashColor);
+      halo3d.material.opacity = 0.3 + 0.45 * flashNiveau;
     }
     // Psyche : rendu direct (canvas transparent, decor CSS visible). Sinon bloom.
     if (themePsyche) renderer.render(scene, camera);
@@ -485,22 +518,24 @@ export function creerVue3D({
       edgeMat.color.copy(_cFlash).multiplyScalar(GLOW_FLASH);
     }
   }
-  // Peint les faces du cube (clignotement plein, theme psyche). null => repos.
-  function peindreCube(couleur) {
-    if (couleur == null) {
-      boxMat.color.copy(CUBE_BASE);
-      boxMat.emissive.copy(CUBE_EMISSIVE_BASE);
-    } else {
-      boxMat.color.set(couleur);
-      boxMat.emissive.set(couleur);
-    }
-  }
   // Signal lumineux du defi, adapte au theme :
-  //  - sombre : seules les arretes changent (cube de cristal translucide).
-  //  - psyche : tout le cube clignote (faces + arretes), cube opaque.
+  //  - sombre : seules les arretes changent (fil de neon, on/off net assume).
+  //  - psyche : on pilote la cible du flash de la lampe ; le gonflement et la
+  //    retombee sont lisses dans animate (rendu organique, pas un on/off sec).
   function peindreSignal(couleur) {
-    peindreArretes(couleur);
-    if (themePsyche) peindreCube(couleur);
+    if (themePsyche) {
+      if (couleur == null) {
+        flashNiveauCible = 0; // relache : la lampe revient a sa teinte cyclique
+      } else {
+        // Adoucit la couleur (moins mecanique) : on la tire vers un blanc creme chaud.
+        _flashTmp.set(couleur).lerp(_warmCream, 0.22);
+        if (!flashCible) flashCible = new THREE.Color();
+        flashCible.copy(_flashTmp);
+        flashNiveauCible = 1;
+      }
+    } else {
+      peindreArretes(couleur);
+    }
   }
 
   // ---- Themes de la scene 3D ----
@@ -510,7 +545,7 @@ export function creerVue3D({
   const THEMES = {
     // sombre : la salle sombre (cube cristal bleu translucide, arretes cyan, maths visibles).
     sombre: { fond: 0x0a0f1a, fog: [0x0a0f1a, 7, 17], arrete: 0x7fe3ff, grille: [0x3a72ad, 0x18283f], ambient: 0.45, cubeOpacity: 0.42, cubeColor: 0x4aa3e0, cubeEmissive: 0x103a5c, math: true,  arretes: true },
-    // psyche : poster 70s organique (cube blanc translucide arrondi, orbe cyclique interne, sans arretes ni labels).
+    // psyche : poster 70s organique (cube blanc translucide arrondi, lampe interne cyclique, sans arretes ni labels).
     psyche: { fond: null,     fog: null,               arrete: 0x3a2233, grille: [0xcf8f6a, 0xe8c79a], ambient: 1.1,  cubeOpacity: 0.6,  cubeColor: 0xffffff, cubeEmissive: 0x000000, math: false, arretes: false },
   };
   function appliquerTheme(nom) {
@@ -538,9 +573,14 @@ export function creerVue3D({
     arretesMesh.visible = t.arretes;
     // Labels de sommets : visibles en sombre, retires en psyche.
     for (const l of vertexLabels) l.visible = !themePsyche;
-    // Orbe lumineux interne : actif en psyche seulement.
-    orbe.visible = themePsyche;
-    orbeLight.intensity = themePsyche ? 1.4 : 0;
+    // Lampe interne (psyche) : halo + point light actifs en psyche seulement ;
+    // l'emissif du cube est pilote image par image dans animate.
+    halo3d.visible = themePsyche;
+    lampeLight.intensity = themePsyche ? 1.1 : 0;
+    flashCible = null;
+    flashNiveau = 0;
+    flashNiveauCible = 0;
+    boxMat.emissiveIntensity = 0.7; // base (sombre) ; psyche la pilote dans animate
   }
 
   return {
