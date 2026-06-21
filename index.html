@@ -50,6 +50,8 @@
     --r-md: 16px;
     --r-sm: 12px;
     --shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.85);
+
+    --aurora-opacity: 0; /* orbs d'aurore coupees par defaut (reglable au banc) */
   }
 
   * { box-sizing: border-box; }
@@ -111,7 +113,7 @@
   .aurora .blob {
     position: absolute;
     border-radius: 50%;
-    opacity: 0.55;
+    opacity: var(--aurora-opacity); /* reglable au banc (defaut tres discret) */
   }
   .aurora .blob--1 {
     width: 48vw; height: 48vw; left: -10vw; bottom: -12vw;
@@ -318,15 +320,9 @@
   /* Seule sortie du cube physique (LED simulee). La couleur et la lueur sont
      pilotees par src/bench/indicateur.js (jaune=code, rouge=erreur, vert=succes). */
   #voyant {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 14px;
-    z-index: 5;
-    background: #0c1322;
-    border-top: 1px solid rgba(120, 160, 210, 0.2);
-    transition: background 0.02s linear, box-shadow 0.02s linear;
+    /* Barre voyant retiree : le retour lumineux passe desormais par les arretes
+       du cube (voir creerIndicateurArretes). Conservee masquee pour reference. */
+    display: none;
   }
   /* Hairline ambre persistante : le voyant reste "vivant" meme eteint.
      (Pilotee en CSS, hors de portee du JS qui ne touche que #voyant.) */
@@ -493,6 +489,39 @@
     line-height: 1.5;
   }
 
+  /* Reglage des lumieres : lignes slider + valeur, et zone de copie. */
+  .lights { display: flex; flex-direction: column; gap: 9px; }
+  .light-row {
+    display: grid;
+    grid-template-columns: 92px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+  }
+  .light-name { font-size: 11px; color: var(--mist); }
+  .light-row input[type="range"] {
+    width: 100%;
+    accent-color: var(--cube);
+    cursor: pointer;
+  }
+  .light-val {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: var(--ink);
+    text-align: right;
+  }
+  .lights-out {
+    width: 100%;
+    resize: vertical;
+    background: var(--deck-solid);
+    color: var(--ink);
+    border: 1px solid var(--edge);
+    border-radius: var(--r-sm);
+    padding: 8px 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
   .saves-list {
     list-style: none;
     margin: 0;
@@ -608,6 +637,56 @@
     @keyframes drift-3 { from { transform: translate(0, 0) scale(1.05); } to { transform: translate(-5vw, -5vh) scale(0.95); } }
   }
 
+  /* ============ SUCCES : carte de victoire, overlay centre temporaire ============ */
+  .succes {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s ease, visibility 0.5s;
+  }
+  .succes.is-on { opacity: 1; visibility: visible; }
+  .succes__card {
+    text-align: center;
+    padding: 34px 54px;
+    border-radius: var(--r-lg);
+    background: radial-gradient(130% 130% at 50% 0%, rgba(46, 204, 113, 0.16), rgba(12, 22, 18, 0.85));
+    border: 1px solid rgba(46, 204, 113, 0.4);
+    box-shadow: 0 0 60px -10px rgba(46, 204, 113, 0.5), var(--shadow);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transform: scale(0.94);
+    transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+  .succes.is-on .succes__card { transform: scale(1); }
+  .succes__bravo {
+    margin: 0;
+    font-family: "Fredoka", system-ui, sans-serif;
+    font-size: clamp(34px, 6vw, 64px);
+    font-weight: 600;
+    color: var(--green);
+    text-shadow: 0 0 24px rgba(46, 204, 113, 0.6);
+  }
+  .succes__label {
+    margin: 12px 0 4px;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mist);
+  }
+  .succes__code {
+    margin: 0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.08em;
+  }
+
   /* ============ Responsive : tablette / mobile ============ */
   @media (max-width: 720px) {
     .hud { padding: 16px; }
@@ -633,6 +712,16 @@
   <span class="blob blob--3"></span>
 </div>
 
+<!-- ============ SUCCES : carte de victoire (overlay temporaire) ============ -->
+<!-- Affichee a la resolution du defi, puis effacee pendant le reset (src/bench/main.js). -->
+<div id="succes" class="succes" role="status" aria-hidden="true">
+  <div class="succes__card">
+    <p class="succes__bravo">Bravo !</p>
+    <p class="succes__label">Le code est</p>
+    <p class="succes__code" id="succes-code">nocode</p>
+  </div>
+</div>
+
 <!-- ============ HUD : surcouche flottante (n'intercepte pas l'orbite) ============ -->
 <div class="hud">
 
@@ -641,10 +730,9 @@
     <p class="briefing__eyebrow">Jumeau numerique</p>
     <h1 class="briefing__title">Le cube de la<br />salle sombre</h1>
     <p class="briefing__tag"><b>Roule le cube. Lis la lumiere. Trouve le code.</b></p>
-    <!-- Titre et mission du defi actif, injectes par src/bench/main.js. -->
+    <!-- Titre du defi actif, injecte par src/bench/main.js. -->
     <div class="briefing__mission">
       <span class="briefing__chip" id="defi-titre"></span>
-      <span class="briefing__brief" id="defi-explication"></span>
     </div>
   </section>
 
@@ -675,10 +763,7 @@
 <div id="voyant" class="voyant" aria-label="Voyant lumineux du cube"></div>
 
 <!-- ============ BANC D'ESSAI : tiroir des outils dev (matrice + poses) ============ -->
-<button class="bench-toggle" id="bench-toggle" type="button" aria-controls="bench" aria-expanded="false">
-  <span class="dot" aria-hidden="true"></span>Banc
-</button>
-
+<!-- Le banc s'ouvre/ferme au clavier (Shift+B). Pas de bouton visible. -->
 <aside class="bench" id="bench" aria-hidden="true">
   <div class="bench__head">
     <h2 class="bench__name">Banc d'essai</h2>
@@ -708,6 +793,48 @@
       <li class="saves-empty" id="saves-empty">Aucune pose enregistree.</li>
     </ul>
   </section>
+
+  <section class="bench__block">
+    <h3 class="bench__title">Reglage des lumieres</h3>
+    <p class="hint">
+      Ajuste en direct, puis copie les valeurs pour me les remonter.
+    </p>
+    <div class="lights" id="lights">
+      <label class="light-row">
+        <span class="light-name">Glow arretes</span>
+        <input type="range" id="lr-glow" min="0" max="8" step="0.1" />
+        <output class="light-val" id="lo-glow"></output>
+      </label>
+      <label class="light-row">
+        <span class="light-name">Bloom force</span>
+        <input type="range" id="lr-force" min="0" max="3" step="0.05" />
+        <output class="light-val" id="lo-force"></output>
+      </label>
+      <label class="light-row">
+        <span class="light-name">Bloom rayon</span>
+        <input type="range" id="lr-rayon" min="0" max="2" step="0.05" />
+        <output class="light-val" id="lo-rayon"></output>
+      </label>
+      <label class="light-row">
+        <span class="light-name">Bloom seuil</span>
+        <input type="range" id="lr-seuil" min="0" max="1" step="0.01" />
+        <output class="light-val" id="lo-seuil"></output>
+      </label>
+      <label class="light-row">
+        <span class="light-name">Aurore (orbs)</span>
+        <input type="range" id="lr-aurore" min="0" max="1" step="0.01" />
+        <output class="light-val" id="lo-aurore"></output>
+      </label>
+      <label class="light-row">
+        <span class="light-name">Nappe au sol</span>
+        <input type="range" id="lr-nappe" min="0" max="1" step="0.01" />
+        <output class="light-val" id="lo-nappe"></output>
+      </label>
+    </div>
+    <textarea id="lights-out" class="lights-out" readonly rows="7"
+      aria-label="Valeurs des lumieres a copier"></textarea>
+    <button id="lights-copy" type="button" class="save-btn">Copier les valeurs</button>
+  </section>
 </aside>
 
 <!-- Montage de l'application (coeur produit + moteur de defis + banc) -->
@@ -718,19 +845,22 @@
 <script>
   (function () {
     var bench = document.getElementById("bench");
-    var toggle = document.getElementById("bench-toggle");
     var close = document.getElementById("bench-close");
 
     function setOpen(open) {
       bench.classList.toggle("is-open", open);
       bench.setAttribute("aria-hidden", open ? "false" : "true");
-      toggle.setAttribute("aria-expanded", open ? "true" : "false");
     }
-    toggle.addEventListener("click", function () {
-      setOpen(!bench.classList.contains("is-open"));
-    });
     close.addEventListener("click", function () { setOpen(false); });
     document.addEventListener("keydown", function (e) {
+      // Shift+B : ouvre/ferme le banc (pas de bouton visible). Ignore si on tape
+      // dans un champ (sliders/zone de copie du banc).
+      var champ = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ""));
+      if (e.shiftKey && (e.key === "B" || e.key === "b") && !champ) {
+        setOpen(!bench.classList.contains("is-open"));
+        e.preventDefault();
+        return;
+      }
       if (e.key === "Escape" && bench.classList.contains("is-open")) setOpen(false);
     });
 

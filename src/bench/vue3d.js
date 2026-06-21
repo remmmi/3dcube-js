@@ -51,9 +51,9 @@ export function creerVue3D({
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(conteneur.clientWidth, conteneur.clientHeight),
-    0.95, // force
+    0.7,  // force
     0.7,  // rayon (diffusion douce)
-    0.5   // seuil de luminosite
+    0.27  // seuil de luminosite
   );
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
@@ -135,8 +135,14 @@ export function creerVue3D({
   cubeGroup.add(new THREE.Mesh(boxGeo, boxMat));
 
   // Arretes lumineuses cyan : le cube lit comme un fil de neon.
+  // Couleur sur-brillante (composantes > 1, hors tone mapping) pour que le
+  // bloom deborde et forme un halo qui enveloppe le cube, sans nappe au sol.
+  const EDGE_BASE = new THREE.Color(0x7fe3ff); // teinte de reference (avant gain)
+  const GLOW_ARRETES = 1.1; // gain HDR initial applique a la teinte de reference
   const edges = new THREE.EdgesGeometry(boxGeo);
   const edgeMat = new THREE.LineBasicMaterial({ color: 0x7fe3ff });
+  edgeMat.toneMapped = false;
+  edgeMat.color.copy(EDGE_BASE).multiplyScalar(GLOW_ARRETES); // nourrit le bloom
   cubeGroup.add(new THREE.LineSegments(edges, edgeMat));
 
   // Halo organique : nappe de lumiere additive posee au sol, qui suit le cube.
@@ -158,6 +164,7 @@ export function creerVue3D({
     new THREE.MeshBasicMaterial({
       map: textureHalo(), transparent: true, blending: THREE.AdditiveBlending,
       depthWrite: false, fog: false,
+      opacity: 0.04, // nappe au sol tres discrete : l'essentiel du halo vient des arretes
     })
   );
   halo.position.set(0.5, 0.5, 0.02); // plan XY = sol (axe Z vertical)
@@ -376,9 +383,44 @@ export function creerVue3D({
   // pour que onFrame (qui reference la vue) ne tourne pas avant son initialisation.
   requestAnimationFrame(animate);
 
+  // ---- API de reglage des lumieres (banc) ----
+  // Permet d'ajuster a chaud le glow des arretes, le bloom et la nappe au sol.
+  // .valeurs reflete l'etat courant (pour affichage / copie depuis le banc).
+  const reglages = {
+    valeurs: {
+      glowArretes: GLOW_ARRETES,
+      bloomForce: bloom.strength,
+      bloomRayon: bloom.radius,
+      bloomSeuil: bloom.threshold,
+      nappeSol: halo.material.opacity,
+    },
+    setGlowArretes(v) {
+      reglages.valeurs.glowArretes = v;
+      edgeMat.color.copy(EDGE_BASE).multiplyScalar(v);
+    },
+    setBloomForce(v) { reglages.valeurs.bloomForce = v; bloom.strength = v; },
+    setBloomRayon(v) { reglages.valeurs.bloomRayon = v; bloom.radius = v; },
+    setBloomSeuil(v) { reglages.valeurs.bloomSeuil = v; bloom.threshold = v; },
+    setNappeSol(v) { reglages.valeurs.nappeSol = v; halo.material.opacity = v; },
+  };
+
+  // ---- Retour lumineux porte par les arretes (a la place d'une LED externe) ----
+  // peindreArretes(couleur) : couleur != null => teinte de flash sur-brillante ;
+  // couleur == null => retour a la teinte de repos (cyan, gain courant).
+  const GLOW_FLASH = 2.6;        // gain HDR pendant un flash (pop visible au bloom)
+  const _cFlash = new THREE.Color();
+  function peindreArretes(couleur) {
+    if (couleur == null) {
+      edgeMat.color.copy(EDGE_BASE).multiplyScalar(reglages.valeurs.glowArretes);
+    } else {
+      _cFlash.set(couleur);
+      edgeMat.color.copy(_cFlash).multiplyScalar(GLOW_FLASH);
+    }
+  }
+
   return {
     animerRoulement, reinitialiserVue, lirePositionsMonde,
     estEnAnimation, capturerPose, appliquerPose,
-    VERTEX_NAMES,
+    VERTEX_NAMES, reglages, peindreArretes,
   };
 }

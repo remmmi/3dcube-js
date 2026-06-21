@@ -1,23 +1,27 @@
-// Banc : indicateur lumineux (LED simulee par une barre DOM pleine largeur).
-// En Arduino, cette couche est remplacee par le pilotage d'une LED physique. Le
-// canal est volontairement etroit : on ne dispose que de lumiere.
+// Banc : indicateur lumineux. En Arduino, cette couche est remplacee par le
+// pilotage d'une LED physique. Le canal est volontairement etroit : on ne
+// dispose que de lumiere.
 //   flashCode(n)  : n clignotements jaunes (code de direction).
 //   flashErreur() : clignotement rouge rapide (~6 Hz, ~3 s).
 //   flashSucces() : clignotement vert accelere de 2 Hz a 20 Hz sur 5 s.
 //   eteindre()    : coupe.
-export function creerIndicateur(element) {
+//
+// Le moteur de clignotement est independant du support : il appelle une fonction
+// peindre(on, couleur) injectee. Deux supports sont fournis :
+//   creerIndicateur(element)    -> barre DOM pleine largeur (le voyant).
+//   creerIndicateurArretes(vue) -> les arretes lumineuses du cube 3D.
+
+// Moteur commun : sequence les impulsions et appelle peindre(on, couleur).
+// peindre(false, ...) doit produire l'etat "eteint" propre au support.
+function creerMoteur(peindre) {
   let minuteur = null;
 
   function arreter() {
     if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
   }
-  function peindre(on, couleur) {
-    element.style.background = on ? couleur : "#0c1322";
-    element.style.boxShadow = on ? "inset 0 0 28px " + couleur + ", 0 0 16px " + couleur : "none";
-  }
   function eteindre() {
     arreter();
-    peindre(false, "#0c1322");
+    peindre(false, null);
   }
 
   // n impulsions de couleur, periode periodeMs (demi-periode allumee / eteinte).
@@ -51,9 +55,27 @@ export function creerIndicateur(element) {
   }
 
   return {
-    flashCode(n) { pulse(n, "#ffd23b", 700); },     // jaune, cadence lente lisible
-    flashErreur() { pulse(9, "#e23b3b", 166); },     // rouge ~6 Hz sur ~3 s
-    flashSucces() { rampe("#2ecc71", 2, 20, 5000); }, // vert 2->20 Hz sur 5 s
+    flashCode(n) { pulse(n, "#ffd23b", 700); },       // jaune, cadence lente lisible
+    flashErreur() { pulse(9, "#e23b3b", 166); },       // rouge ~6 Hz sur ~3 s
+    flashSucces() { rampe("#2ecc71", 2, 20, 5000); },  // vert 2->20 Hz sur 5 s
     eteindre,
   };
+}
+
+// Support DOM : barre lumineuse pleine largeur (le voyant historique).
+export function creerIndicateur(element) {
+  function peindre(on, couleur) {
+    element.style.background = on ? couleur : "#0c1322";
+    element.style.boxShadow = on ? "inset 0 0 28px " + couleur + ", 0 0 16px " + couleur : "none";
+  }
+  return creerMoteur(peindre);
+}
+
+// Support 3D : ce sont les arretes du cube qui changent de couleur et flashent.
+// Etat "eteint" = retour a la teinte de repos (cyan), le cube reste visible.
+export function creerIndicateurArretes(vue) {
+  function peindre(on, couleur) {
+    vue.peindreArretes(on ? couleur : null);
+  }
+  return creerMoteur(peindre);
 }
