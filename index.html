@@ -211,78 +211,59 @@
     gap: 12px;
     pointer-events: none;
   }
-  .console__cue {
-    margin: 0 0 0 6px;
-    font-family: "Fredoka", sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--ink);
-    text-shadow: 0 0 22px rgba(255, 210, 59, 0.4);
-  }
-
-  /* D-pad : grille 3x2 en croix, contenant arrondi organique. */
+  /* D-pad : croix de touches, sans cadre (les touches flottent librement). */
   .dpad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-areas:
       ".    up    ."
       "left down right";
-    gap: 11px;
-    padding: 16px;
-    background:
-      radial-gradient(120% 140% at 30% 0%, rgba(91, 200, 255, 0.1), transparent 60%),
-      var(--deck);
-    border: 1px solid var(--edge-strong);
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow),
-                0 0 40px -8px rgba(91, 200, 255, 0.25),
-                inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    pointer-events: auto;
+    gap: 7px;
   }
   .dkey--up { grid-area: up; }
   .dkey--down { grid-area: down; }
   .dkey--left { grid-area: left; }
   .dkey--right { grid-area: right; }
 
-  /* Touches circulaires (bulles lumineuses) : registre organique. */
+  /* Touches facon clavier luminescent : keycap vitree, lueur d'accent du theme. */
   .dkey {
-    width: clamp(54px, 8vw, 64px);
-    height: clamp(54px, 8vw, 64px);
+    width: clamp(38px, 5vw, 46px);
+    height: clamp(38px, 5vw, 46px);
     display: grid;
     place-items: center;
-    color: var(--ink);
-    background: radial-gradient(130% 130% at 50% 22%, rgba(56, 76, 110, 0.95), rgba(20, 30, 48, 0.95));
+    color: #eaf3ff;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(18, 26, 42, 0.55));
     border: 1px solid var(--edge-strong);
-    border-radius: 50%;
+    border-radius: 11px;
     cursor: pointer;
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08),
-                inset 0 -6px 14px rgba(0, 0, 0, 0.35);
-    transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease,
-                border-color 0.22s ease, background 0.22s ease, color 0.22s ease;
+    pointer-events: auto;
+    box-shadow: 0 0 16px -5px var(--cube),
+                inset 0 1px 0 rgba(255, 255, 255, 0.22),
+                inset 0 -3px 7px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease,
+                border-color 0.22s ease, color 0.22s ease;
   }
-  .dkey svg { width: 40%; height: 40%; display: block; }
+  .dkey svg { width: 42%; height: 42%; display: block; }
   .dkey--down svg { transform: rotate(180deg); }
   .dkey--left svg { transform: rotate(-90deg); }
   .dkey--right svg { transform: rotate(90deg); }
 
   .dkey:hover {
     color: var(--amber);
-    border-color: rgba(255, 210, 59, 0.65);
-    background: radial-gradient(130% 130% at 50% 22%, rgba(74, 98, 138, 0.98), rgba(28, 40, 62, 0.98));
-    box-shadow: 0 0 34px -4px rgba(255, 210, 59, 0.55),
-                inset 0 1px 1px rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 210, 59, 0.6);
+    box-shadow: 0 0 26px -3px rgba(255, 210, 59, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
     transform: translateY(-2px);
   }
   .dkey:active, .dkey.is-active {
-    color: var(--void);
-    background: radial-gradient(130% 130% at 50% 30%, #ffe27a, var(--amber));
+    color: #1a1205;
+    background: linear-gradient(180deg, #ffe27a, var(--amber));
     border-color: var(--amber);
-    box-shadow: 0 0 44px -2px rgba(255, 210, 59, 0.9),
-                inset 0 0 10px rgba(255, 255, 255, 0.5);
-    transform: translateY(1px) scale(0.95);
+    box-shadow: 0 0 34px -2px rgba(255, 210, 59, 0.9),
+                inset 0 0 8px rgba(255, 255, 255, 0.55);
+    transform: translateY(1px) scale(0.96);
   }
   .dkey:focus-visible {
     outline: 2px solid var(--amber);
@@ -309,12 +290,6 @@
   .restart:hover { background: rgba(91, 200, 255, 0.14); border-color: rgba(91, 200, 255, 0.5); }
   .restart:active { background: rgba(91, 200, 255, 0.24); }
   .restart:focus-visible { outline: 2px solid var(--cube); outline-offset: 3px; }
-  .console__hint {
-    margin: 0;
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.02em;
-  }
 
   /* ============ VOYANT : barre de signal lumineuse, plein largeur ============ */
   /* Seule sortie du cube physique (LED simulee). La couleur et la lueur sont
@@ -897,9 +872,8 @@
     </div>
   </section>
 
-  <!-- Console : D-pad lumineux + recommencer (bas-centre) -->
+  <!-- Console : D-pad lumineux + recommencer (bas-gauche) -->
   <section class="console reveal reveal--3">
-    <p class="console__cue">Fais rouler le cube</p>
     <div class="dpad">
       <button id="btn-up" class="dkey dkey--up" type="button" title="Basculer vers le haut (+Y)" aria-label="Basculer vers le haut">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15 L12 8 L19 15" /></svg>
@@ -915,7 +889,6 @@
       </button>
     </div>
     <button id="btn-reset" class="restart" type="button">Recommencer</button>
-    <p class="console__hint">ou les fleches du clavier</p>
   </section>
 
 </div>
