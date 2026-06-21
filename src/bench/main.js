@@ -64,6 +64,8 @@ async function demarrer() {
   const { RenderPass } = await import("three/addons/postprocessing/RenderPass.js");
   const { UnrealBloomPass } = await import("three/addons/postprocessing/UnrealBloomPass.js");
   const { OutputPass } = await import("three/addons/postprocessing/OutputPass.js");
+  // Geometrie de cube a chanfrein arrondi.
+  const { RoundedBoxGeometry } = await import("three/addons/geometries/RoundedBoxGeometry.js");
 
   // ---- Coeur produit ----
   const coeur = creerCubeState();
@@ -81,6 +83,7 @@ async function demarrer() {
   const vue = creerVue3D({
     THREE, OrbitControls, CSS2DRenderer, CSS2DObject,
     EffectComposer, RenderPass, UnrealBloomPass, OutputPass,
+    RoundedBoxGeometry,
     conteneur: viewer,
     onFrame: (temps) => {
       // Le defi n'amorce le flash que lorsque le cube est immobile (auRepos).
@@ -123,6 +126,24 @@ async function demarrer() {
       reinitialiser();
       succesEnCours = false;
     }, SUCCES_DUREE_MS);
+  }
+
+  // ---- Bascule de theme : "sombre" (salle sombre) <-> "psyche" (70s clair) ----
+  // Applique la classe CSS (decor, HUD) et le theme 3D (fond, arretes, grille).
+  function appliquerThemePage(nom) {
+    document.body.classList.toggle("theme-psyche", nom === "psyche");
+    vue.appliquerTheme(nom);
+    try { localStorage.setItem("theme", nom); } catch (e) { /* prive : on ignore */ }
+  }
+  let themeActuel = "sombre";
+  try { themeActuel = localStorage.getItem("theme") || "sombre"; } catch (e) { /* idem */ }
+  appliquerThemePage(themeActuel);
+  const themeBtn = document.getElementById("theme-toggle");
+  if (themeBtn) {
+    themeBtn.addEventListener("click", () => {
+      themeActuel = (themeActuel === "psyche") ? "sombre" : "psyche";
+      appliquerThemePage(themeActuel);
+    });
   }
 
   // Remplit le bandeau avec le titre et l'explication du module de defi actif.

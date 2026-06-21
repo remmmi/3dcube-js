@@ -24,6 +24,7 @@ const ROULEMENT_VUE = {
 export function creerVue3D({
   THREE, OrbitControls, CSS2DRenderer, CSS2DObject,
   EffectComposer, RenderPass, UnrealBloomPass, OutputPass,
+  RoundedBoxGeometry,
   conteneur, onFrame,
 }) {
   const scene = new THREE.Scene();
@@ -37,7 +38,14 @@ export function creerVue3D({
   camera.position.set(3.5, -4.5, 3.2);
   camera.lookAt(0.5, 0.5, 0.5);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // alpha:true => le canvas peut devenir transparent (theme psychedelique : on
+  // laisse voir le fond CSS anime derriere le cube). En theme sombre, un fond
+  // opaque est repose sur la scene et recouvre tout.
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setClearColor(0x000000, 0);
+  // Theme actif : en "psyche", on rend sans le composer (canvas transparent) pour
+  // laisser voir le decor CSS 70s ; en "sombre", on passe par le bloom.
+  let themePsyche = false;
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(conteneur.clientWidth, conteneur.clientHeight);
   conteneur.appendChild(renderer.domElement);
@@ -87,9 +95,20 @@ export function creerVue3D({
   scene.add(rim);
 
   // Sol : grille holographique (lignes bleutees qui se perdent dans la brume).
-  const grid = new THREE.GridHelper(10, 10, 0x3a72ad, 0x18283f);
-  grid.rotation.x = Math.PI / 2;
-  scene.add(grid);
+  // Recreee lors d'un changement de theme (les couleurs sont figees a la creation).
+  let grid = null;
+  function recreerGrille(c1, c2) {
+    if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+    grid = new THREE.GridHelper(10, 10, c1, c2);
+    grid.rotation.x = Math.PI / 2;
+    scene.add(grid);
+  }
+  recreerGrille(0x3a72ad, 0x18283f);
+
+  // Echafaudage cartesien (axes + graduations) : repere de lecture du jumeau.
+  // Masque en theme psyche, ou le decor organique remplace les maths. La grille
+  // (recreee a chaque theme) est geree a part via grid.visible.
+  const mathHelpers = [];
 
   // Graduations numeriques des axes X et Y, fixes dans la scene (reperes de lecture).
   function makeAxisTick(text, x, y, variant) {
@@ -99,6 +118,7 @@ export function creerVue3D({
     const obj = new CSS2DObject(div);
     obj.position.set(x, y, 0);
     scene.add(obj);
+    mathHelpers.push(obj);
   }
   const GRID_HALF = 5;
   const TICK_GAP = 0.12;
@@ -107,7 +127,9 @@ export function creerVue3D({
   function makeAxisLine(from, to, color) {
     const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
     const mat = new THREE.LineBasicMaterial({ color: color });
-    scene.add(new THREE.Line(geo, mat));
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    mathHelpers.push(line);
   }
   const zLift = 0.002; // evite le z-fighting avec la grille
   makeAxisLine(new THREE.Vector3(-GRID_HALF, 0, zLift), new THREE.Vector3(GRID_HALF, 0, zLift), 0xff5a5a);
@@ -124,7 +146,12 @@ export function creerVue3D({
   const cubeGroup = new THREE.Group();
   scene.add(cubeGroup);
 
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  // Cube a chanfrein arrondi (RoundedBoxGeometry) si l'addon est fourni, sinon
+  // cube net. Le rayon reste petit pour garder la lecture "cube" du jumeau.
+  const CHANFREIN = RoundedBoxGeometry ? 0.1 : 0;
+  const boxGeo = CHANFREIN > 0
+    ? new RoundedBoxGeometry(1, 1, 1, 4, CHANFREIN)
+    : new THREE.BoxGeometry(1, 1, 1);
   boxGeo.translate(0.5, 0.5, 0.5);
   // Cube de cristal : verre bleu translucide, legere lueur interne.
   const boxMat = new THREE.MeshStandardMaterial({
@@ -133,17 +160,27 @@ export function creerVue3D({
     emissive: 0x103a5c, emissiveIntensity: 0.7,
   });
   cubeGroup.add(new THREE.Mesh(boxGeo, boxMat));
+  const CUBE_BASE = new THREE.Color(0x4aa3e0);     // teinte de repos des faces
+  const CUBE_EMISSIVE_BASE = new THREE.Color(0x103a5c);
 
   // Arretes lumineuses cyan : le cube lit comme un fil de neon.
   // Couleur sur-brillante (composantes > 1, hors tone mapping) pour que le
   // bloom deborde et forme un halo qui enveloppe le cube, sans nappe au sol.
   const EDGE_BASE = new THREE.Color(0x7fe3ff); // teinte de reference (avant gain)
   const GLOW_ARRETES = 1.1; // gain HDR initial applique a la teinte de reference
-  const edges = new THREE.EdgesGeometry(boxGeo);
+  // Arretes : 12 lignes propres posees sur la crete des congos arrondis. On les
+  // calcule sur une boite legerement reduite (decalage = rayon * (1 - 1/racine2),
+  // soit l'inset du point a 45 degres du congo) plutot que sur le maillage du
+  // chanfrein (qui donnerait une nuee de segments).
+  const insetArrete = CHANFREIN * (1 - Math.SQRT1_2);
+  const edgeBox = new THREE.BoxGeometry(1 - 2 * insetArrete, 1 - 2 * insetArrete, 1 - 2 * insetArrete);
+  edgeBox.translate(0.5, 0.5, 0.5);
+  const edges = new THREE.EdgesGeometry(edgeBox);
   const edgeMat = new THREE.LineBasicMaterial({ color: 0x7fe3ff });
   edgeMat.toneMapped = false;
   edgeMat.color.copy(EDGE_BASE).multiplyScalar(GLOW_ARRETES); // nourrit le bloom
-  cubeGroup.add(new THREE.LineSegments(edges, edgeMat));
+  const arretesMesh = new THREE.LineSegments(edges, edgeMat);
+  cubeGroup.add(arretesMesh); // masque en psyche (le cube garde juste l'arrondi)
 
   // Halo organique : nappe de lumiere additive posee au sol, qui suit le cube.
   // Texture radiale generee a la volee (degrade cyan vers transparent).
@@ -376,7 +413,9 @@ export function creerVue3D({
     halo.position.x = haloTmp.x;
     halo.position.y = haloTmp.y;
     if (onFrame) onFrame(performance.now());
-    composer.render();
+    // Psyche : rendu direct (canvas transparent, decor CSS visible). Sinon bloom.
+    if (themePsyche) renderer.render(scene, camera);
+    else composer.render();
     labelRenderer.render(scene, camera);
   }
   // Demarrage differe : le premier frame s'execute apres le retour de creerVue3D,
@@ -417,10 +456,62 @@ export function creerVue3D({
       edgeMat.color.copy(_cFlash).multiplyScalar(GLOW_FLASH);
     }
   }
+  // Peint les faces du cube (clignotement plein, theme psyche). null => repos.
+  function peindreCube(couleur) {
+    if (couleur == null) {
+      boxMat.color.copy(CUBE_BASE);
+      boxMat.emissive.copy(CUBE_EMISSIVE_BASE);
+    } else {
+      boxMat.color.set(couleur);
+      boxMat.emissive.set(couleur);
+    }
+  }
+  // Signal lumineux du defi, adapte au theme :
+  //  - sombre : seules les arretes changent (cube de cristal translucide).
+  //  - psyche : tout le cube clignote (faces + arretes), cube opaque.
+  function peindreSignal(couleur) {
+    peindreArretes(couleur);
+    if (themePsyche) peindreCube(couleur);
+  }
+
+  // ---- Themes de la scene 3D ----
+  // sombre : la salle sombre d'origine (fond nuit, brume, arretes cyan).
+  // psyche : fond transparent (le decor CSS 70s passe au travers), arretes
+  // magenta, grille acidulee, ambiance plus claire.
+  const THEMES = {
+    // sombre : la salle sombre (cube cristal bleu translucide, arretes cyan, maths visibles).
+    sombre: { fond: 0x0a0f1a, fog: [0x0a0f1a, 7, 17], arrete: 0x7fe3ff, grille: [0x3a72ad, 0x18283f], ambient: 0.45, cubeOpacity: 0.42, cubeColor: 0x4aa3e0, cubeEmissive: 0x103a5c, math: true,  arretes: true },
+    // psyche : poster 70s organique (cube marigold opaque arrondi, sans arretes, maths masquees).
+    psyche: { fond: null,     fog: null,               arrete: 0x3a2233, grille: [0xcf8f6a, 0xe8c79a], ambient: 1.1,  cubeOpacity: 1,    cubeColor: 0xf2a93b, cubeEmissive: 0x3a1e00, math: false, arretes: false },
+  };
+  function appliquerTheme(nom) {
+    const t = THEMES[nom] || THEMES.sombre;
+    themePsyche = (nom === "psyche");
+    scene.background = (t.fond == null) ? null : new THREE.Color(t.fond);
+    scene.fog = t.fog ? new THREE.Fog(t.fog[0], t.fog[1], t.fog[2]) : null;
+    EDGE_BASE.set(t.arrete);
+    edgeMat.color.copy(EDGE_BASE).multiplyScalar(reglages.valeurs.glowArretes);
+    ambient.intensity = t.ambient;
+    recreerGrille(t.grille[0], t.grille[1]);
+    // Cube : teinte de repos + opacite selon le theme (on annule un flash residuel).
+    CUBE_BASE.set(t.cubeColor);
+    CUBE_EMISSIVE_BASE.set(t.cubeEmissive);
+    boxMat.opacity = t.cubeOpacity;
+    boxMat.transparent = t.cubeOpacity < 1;
+    boxMat.needsUpdate = true;
+    boxMat.color.copy(CUBE_BASE);
+    boxMat.emissive.copy(CUBE_EMISSIVE_BASE);
+    // Echafaudage cartesien : visible en sombre, masque en psyche (le decor
+    // organique du poster fait office de monde).
+    grid.visible = t.math;
+    for (const o of mathHelpers) o.visible = t.math;
+    // Arretes : tracees en sombre (fil de neon / indicateur), masquees en psyche.
+    arretesMesh.visible = t.arretes;
+  }
 
   return {
     animerRoulement, reinitialiserVue, lirePositionsMonde,
     estEnAnimation, capturerPose, appliquerPose,
-    VERTEX_NAMES, reglages, peindreArretes,
+    VERTEX_NAMES, reglages, peindreArretes, peindreSignal, appliquerTheme,
   };
 }

@@ -71,11 +71,12 @@ export function creerIndicateur(element) {
   return creerMoteur(peindre);
 }
 
-// Support 3D : ce sont les arretes du cube qui changent de couleur et flashent.
-// Etat "eteint" = retour a la teinte de repos (cyan), le cube reste visible.
+// Support 3D : le cube lui-meme change de couleur et flashe. Selon le theme,
+// peindreSignal fait clignoter les arretes seules (sombre) ou tout le cube
+// (psyche). Etat "eteint" = retour a la teinte de repos.
 export function creerIndicateurArretes(vue) {
   function peindre(on, couleur) {
-    vue.peindreArretes(on ? couleur : null);
+    vue.peindreSignal(on ? couleur : null);
   }
   return creerMoteur(peindre);
 }
