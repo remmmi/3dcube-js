@@ -35,8 +35,14 @@ export function creerVue3D({
   const camera = new THREE.PerspectiveCamera(45, conteneur.clientWidth / conteneur.clientHeight, 0.1, 100);
   // Axe Z vertical : le "haut" de la camera est +Z.
   camera.up.set(0, 0, 1);
-  camera.position.set(3.5, -4.5, 3.2);
-  camera.lookAt(0.5, 0.5, 0.5);
+  // Pose 3/4 de base. Sur ecran etroit (mobile portrait), on recule la camera
+  // le long du meme axe pour que le cube ne deborde pas.
+  const CAM_TARGET = new THREE.Vector3(0.5, 0.5, 0.5);
+  const CAM_OFFSET = new THREE.Vector3(3.0, -5.0, 2.7); // = (3.5,-4.5,3.2) - cible
+  const aspectInit = conteneur.clientWidth / conteneur.clientHeight;
+  const reculInit = aspectInit < 0.7 ? 1.7 : aspectInit < 1.0 ? 1.3 : 1;
+  camera.position.copy(CAM_TARGET).addScaledVector(CAM_OFFSET, reculInit);
+  camera.lookAt(CAM_TARGET);
 
   // alpha:true => le canvas peut devenir transparent (theme psychedelique : on
   // laisse voir le fond CSS anime derriere le cube). En theme sombre, un fond
