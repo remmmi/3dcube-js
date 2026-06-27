@@ -483,15 +483,27 @@ export function creerVue3D({
   // ---- Retour lumineux porte par les arretes (a la place d'une LED externe) ----
   // peindreArretes(couleur) : couleur != null => teinte de flash sur-brillante ;
   // couleur == null => retour a la teinte de repos (cyan, gain courant).
-  const GLOW_FLASH = 5.0;        // gain HDR pendant un flash : fort pour que le
-                                 // clignotement (surtout le rouge, peu lumineux)
-                                 // ressorte au bloom, y compris sur mobile
+  const GLOW_FLASH = 5.0;        // gain HDR d'un flash standard (jaune de code,
+                                 // vert de succes) : neon franc, deja bien visible
+  const GLOW_FLASH_ROUGE = 8.0;  // le rouge d'erreur est pousse plus fort (cf. ci-dessous)
   const _cFlash = new THREE.Color();
+  const _hsl = { h: 0, s: 0, l: 0 };
   function peindreArretes(couleur) {
     if (couleur == null) {
       edgeMat.color.copy(EDGE_BASE).multiplyScalar(reglages.valeurs.glowArretes);
+      return;
+    }
+    _cFlash.set(couleur).getHSL(_hsl);
+    // Cas particulier du rouge d'erreur : intrinsequement sombre, il se noyait
+    // dans son clignotement rapide et passait inapercu sur mobile. On le sature
+    // (S=1, clarte plafonnee => rouge franc, affordant comme une alarme, jamais
+    // rose) et on le sur-expose plus fort pour un halo bloom large. Les autres
+    // signaux (jaune, vert) gardent EXACTEMENT leur neon d'origine.
+    const estRouge = _hsl.h < 0.04 || _hsl.h > 0.96;
+    if (estRouge) {
+      _cFlash.setHSL(_hsl.h, 1.0, Math.min(_hsl.l, 0.5));
+      edgeMat.color.copy(_cFlash).multiplyScalar(GLOW_FLASH_ROUGE);
     } else {
-      _cFlash.set(couleur);
       edgeMat.color.copy(_cFlash).multiplyScalar(GLOW_FLASH);
     }
   }
