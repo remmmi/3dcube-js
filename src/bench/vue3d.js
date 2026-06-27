@@ -105,29 +105,18 @@ export function creerVue3D({
   let grid = null;
   function recreerGrille(c1, c2) {
     if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
-    grid = new THREE.GridHelper(10, 10, c1, c2);
+    grid = new THREE.GridHelper(100, 100, c1, c2);
     grid.rotation.x = Math.PI / 2;
     scene.add(grid);
   }
   recreerGrille(0x3a72ad, 0x18283f);
 
-  // Echafaudage cartesien (axes + graduations) : repere de lecture du jumeau.
+  // Echafaudage cartesien (axes colores) : repere de lecture du jumeau.
   // Masque en theme psyche, ou le decor organique remplace les maths. La grille
   // (recreee a chaque theme) est geree a part via grid.visible.
   const mathHelpers = [];
 
-  // Graduations numeriques des axes X et Y, fixes dans la scene (reperes de lecture).
-  function makeAxisTick(text, x, y, variant) {
-    const div = document.createElement("div");
-    div.className = "axis-tick axis-tick-" + variant;
-    div.textContent = text;
-    const obj = new CSS2DObject(div);
-    obj.position.set(x, y, 0);
-    scene.add(obj);
-    mathHelpers.push(obj);
-  }
   const GRID_HALF = 5;
-  const TICK_GAP = 0.12;
 
   // Lignes d'axes colorees : X rouge, Y vert, Z bleu (vertical).
   function makeAxisLine(from, to, color) {
@@ -141,12 +130,6 @@ export function creerVue3D({
   makeAxisLine(new THREE.Vector3(-GRID_HALF, 0, zLift), new THREE.Vector3(GRID_HALF, 0, zLift), 0xff5a5a);
   makeAxisLine(new THREE.Vector3(0, -GRID_HALF, zLift), new THREE.Vector3(0, GRID_HALF, zLift), 0x36d07a);
   makeAxisLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 2), 0x5b9bff);
-  for (let i = -GRID_HALF; i <= GRID_HALF; i++) {
-    if (i === 0) continue;
-    makeAxisTick(String(i), i, -TICK_GAP, "x");
-    makeAxisTick(String(i), -TICK_GAP, i, "y");
-  }
-  makeAxisTick("0", -TICK_GAP, -TICK_GAP, "o");
 
   // Cube dans un groupe : au depart sa matrice est l'identite.
   const cubeGroup = new THREE.Group();
@@ -250,25 +233,17 @@ export function creerVue3D({
   scene.add(halo);
   const haloTmp = new THREE.Vector3();
 
-  // Noeuds des sommets + labels CSS2D, enfants du cubeGroup (ils suivent le cube).
-  const CENTER = new THREE.Vector3(0.5, 0.5, 0.5);
+  // Noeuds des sommets, enfants du cubeGroup (ils suivent le cube). Ils servent a
+  // lire les positions monde et a placer le pivot ; les etiquettes A..H ont ete
+  // retirees de l'affichage.
   const vertexNodes = {};
-  const vertexLabels = []; // labels A..H, masques en psyche
+  const vertexLabels = []; // conserve vide : plus d'etiquettes de sommets
   for (const name of VERTEX_NAMES) {
     const [x, y, z] = VERTEX_LOCAL[name];
     const node = new THREE.Object3D();
     node.position.set(x, y, z);
     cubeGroup.add(node);
     vertexNodes[name] = node;
-
-    const dir = new THREE.Vector3(x, y, z).sub(CENTER).normalize();
-    const div = document.createElement("div");
-    div.className = "vertex-label";
-    div.textContent = name;
-    const label = new CSS2DObject(div);
-    label.position.copy(dir.multiplyScalar(0.25));
-    node.add(label);
-    vertexLabels.push(label);
   }
 
   let isRolling = false;
@@ -508,7 +483,9 @@ export function creerVue3D({
   // ---- Retour lumineux porte par les arretes (a la place d'une LED externe) ----
   // peindreArretes(couleur) : couleur != null => teinte de flash sur-brillante ;
   // couleur == null => retour a la teinte de repos (cyan, gain courant).
-  const GLOW_FLASH = 2.6;        // gain HDR pendant un flash (pop visible au bloom)
+  const GLOW_FLASH = 5.0;        // gain HDR pendant un flash : fort pour que le
+                                 // clignotement (surtout le rouge, peu lumineux)
+                                 // ressorte au bloom, y compris sur mobile
   const _cFlash = new THREE.Color();
   function peindreArretes(couleur) {
     if (couleur == null) {
