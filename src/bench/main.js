@@ -128,25 +128,16 @@ async function demarrer() {
     }, SUCCES_DUREE_MS);
   }
 
-  // ---- Bascule de theme : "sombre" (salle sombre) <-> "psyche" (70s clair) ----
+  // ---- Theme de la page : "sombre" (salle sombre / classique) ----
   // Applique la classe CSS (decor, HUD) et le theme 3D (fond, arretes, grille).
-  // Pas de bouton visible : bascule au clavier (Shift+P), choix memorise.
+  // Le theme "psyche" (70s clair) reste dans le code (vue3d.js + CSS .theme-psyche)
+  // mais est mort : plus de bascule Shift+P, plus de memorisation, on demarre
+  // toujours en "sombre". appliquerThemePage("psyche") reste techniquement possible.
   function appliquerThemePage(nom) {
     document.body.classList.toggle("theme-psyche", nom === "psyche");
     vue.appliquerTheme(nom);
-    try { localStorage.setItem("theme", nom); } catch (e) { /* prive : on ignore */ }
   }
-  let themeActuel = "sombre";
-  try { themeActuel = localStorage.getItem("theme") || "sombre"; } catch (e) { /* idem */ }
-  appliquerThemePage(themeActuel);
-  window.addEventListener("keydown", (event) => {
-    if (!event.shiftKey || (event.key !== "P" && event.key !== "p")) return;
-    const champ = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName || "");
-    if (champ) return; // ne pas intercepter la saisie dans un champ
-    themeActuel = (themeActuel === "psyche") ? "sombre" : "psyche";
-    appliquerThemePage(themeActuel);
-    event.preventDefault();
-  });
+  appliquerThemePage("sombre");
 
   // Remplit le bandeau avec le titre et l'explication du module de defi actif.
   function majBandeau() {
